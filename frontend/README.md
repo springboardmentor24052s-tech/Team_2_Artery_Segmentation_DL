@@ -1,221 +1,138 @@
-# ArteryAI — Coronary Artery Research Platform
+ArteryAI – Frontend
 
-**Project Title:** Artery Segmentation and Stenosis Detection Using Advanced Deep Learning Techniques  
-**Milestone:** Milestone 1 — Modern Frontend Architecture & Research Dashboard  
-**Dataset Context:** ARCADE Benchmark Dataset (2D X-ray Coronary Angiography - XCA)
+1. Project Overview
 
----
+ArteryAI is the frontend application for Artery Segmentation and Stenosis Detection Using Advanced Deep Learning Techniques. It provides a user-friendly interface for uploading angiography images, managing cases, viewing processing status, and visualizing segmentation results when available.
 
-## 1. Project Overview
+The frontend is designed to integrate with a backend API that handles image processing and deep learning model inference.
 
-**ArteryAI** is an AI-assisted medical imaging research platform designed to streamline coronary artery segmentation and stenosis-region analysis for cardiovascular researchers, faculty mentors, and students. 
+2. Features
 
-The platform is designed around the **ARCADE dataset**, which consists of **2D X-ray coronary angiography (XCA)** images and cine sequences. 
+- Dashboard: Displays an overview of cases and project activity.
+- Case Management: View and organize patient imaging cases using the available case information.
+- Image Upload: Provides an interface for selecting angiography images for processing.
+- Processing Status: Displays the available status of image-processing tasks.
+- Segmentation Results: Provides a UI for viewing segmentation outputs when available.
+- Mock/Demo Data: Supports demonstration using sample data where configured.
+- Responsive UI: Designed to work across different screen sizes.
+- Reusable Components: Uses reusable UI components to maintain consistency across pages.
 
-> **Important Research Scope Notes:**
-> - **Modality:** The platform focuses exclusively on **X-ray coronary angiography (XCA)**. It does **not** use 3D CT angiography.
-> - **Status:** In Milestone 1, all AI deep learning inference models (e.g., vessel segmentation masks and stenosis percentage calculations) and automated clinical diagnosis features are represented as **clearly designated placeholders**. No real clinical claims are made.
-> - **Demo Mode:** When operating in demo mode, synthetic research cases and simulated workflows are presented without transmitting data to external servers.
+3. Technology Stack
 
----
+- React – Building the user interface
+- Vite – Development server and build tool
+- Tailwind CSS – Styling and responsive layouts
+- React Router – Client-side navigation
+- Axios – HTTP requests to backend APIs
+- Lucide React – Icons
+- JavaScript – Frontend programming language
 
-## 2. Technology Stack
+4. Project Structure
 
-- **React.js 19** with **Vite**
-- **JavaScript & JSX**
-- **Tailwind CSS** (navy text, clean white/light backgrounds, and medical blue accent palette)
-- **React Router DOM v7** (modular routing between auth layouts and authenticated dashboard layouts)
-- **Axios** (preconfigured API client with request/response interceptors for future backend deployment)
-- **Lucide React** (consistent healthcare and research iconography)
+frontend/
+├── public/
+├── src/
+│ ├── components/ # Reusable UI components
+│ ├── pages/ # Application pages
+│ ├── services/ # API and application services
+│ ├── contexts/ # Shared application state
+│ ├── mocks/ # Sample data for demo mode
+│ ├── App.jsx # Main application component
+│ └── main.jsx # Application entry point
+├── .env.example # Example environment configuration
+├── index.html
+├── package.json
+├── vite.config.js
+└── README.md
 
----
+The structure above is illustrative. Keep only folders and files that exist in your project.
 
-## 3. Getting Started
+5. Prerequisites
 
-### Prerequisites
+Install the following before running the application:
 
-- **Node.js**: v18.0.0 or higher (v22.x recommended)
-- **npm**: v9.0.0 or higher
+- Node.js (a version compatible with the project dependencies)
+- npm
+- Git
 
-### Installation
+6. Installation
 
-1. Clone or navigate to the project directory:
-   ```bash
-   cd "Infosys Project"
-   ```
+Navigate to the frontend directory:
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+cd frontend
 
-3. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-   *(On Windows PowerShell: `Copy-Item .env.example .env`)*
+Install dependencies:
 
-4. Launch the local development server:
-   ```bash
-   npm run dev
-   ```
+npm install
 
-5. Open your browser and navigate to the local Vite URL (typically `http://localhost:5173`).
+7. Environment Configuration
 
----
+Create a local .env file based on .env.example, if the project uses these variables.
 
-## 4. Environment Variables (`.env.example`)
+Example configuration:
 
-The application provides a centralized configuration via Vite environment variables:
+VITE_API_BASE_URL=http://localhost:8000
+VITE_USE_MOCK=true
+VITE_SUPPORTED_IMAGE_FORMATS=jpg,jpeg,png
+VITE_MAX_UPLOAD_SIZE_MB=10
 
-| Variable | Default Value | Description |
-|---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | Provisional base URL for the backend API |
-| `VITE_USE_MOCK` | `true` | Set to `true` for frontend demo mode; `false` to route calls through `apiClient` |
-| `VITE_SUPPORTED_IMAGE_FORMATS` | `.dcm,.png,.jpg,.jpeg,.tif,.tiff` | Permitted angiography image extensions |
-| `VITE_MAX_UPLOAD_SIZE_MB` | `50` | Maximum file size allowed in the upload interface |
+Adjust the values according to your actual implementation and backend configuration. Do not commit private credentials or secrets.
 
----
+8. Run the Application
 
-## 5. Mock Data Architecture & Persistence
+Start the Vite development server:
 
-To enable evaluation prior to backend deployment:
+npm run dev
 
-- **Separate Mock Layer:** Mock cases and data stores reside in `src/mocks/mockCases.js` and `src/services/caseService.js`, completely decoupled from UI presentation components.
-- **Client-Side Synchronization:** Cases are held in a shared `CaseContext` backed by `localStorage` (`arteryai_mock_cases`). When you create a case or simulate an upload, all views (Dashboard, Case History, Case Details, Preprocessing Status) update immediately without page refresh.
-- **Reset Demo Data:** A convenient **"Reset Demo Data"** button in the top navigation bar allows you to restore the initial benchmark cases at any time.
-- **Demo Mode Indicator:** A small, clickable **"Demo Mode"** badge is present in the navigation bar, offering an explanatory modal detailing the synthetic dataset characteristics.
+Open the local URL printed in your terminal, usually:
 
----
+http://localhost:5173
 
-## 6. Provisional API Specification for Backend Team
+9. Mock and Demo Mode
 
-The frontend services (`src/services/`) are organized to seamlessly transition to a live REST API by flipping `VITE_USE_MOCK=false`. The backend engineering team should review and confirm the following provisional endpoints:
+If mock mode is implemented, the frontend can use sample case data to demonstrate the interface before the backend integration is complete.
 
-### Authentication (`src/services/authService.js`)
-- `POST /auth/login` — Researcher authentication (returns JWT `token` and `user` object).
-- `POST /auth/register` — Researcher registration.
-- `GET /auth/me` — Retrieve session details of the currently authenticated researcher.
-- `POST /auth/forgot-password` — Dispatch password reset link / token.
-- `POST /auth/logout` — Invalidate user token.
+The mock mode may be configured through VITE_USE_MOCK, depending on how the application reads that variable.
 
-### Case Management (`src/services/caseService.js`)
-- `GET /cases` — List all study cases (supports query params `?search=...&status=...`).
-- `GET /cases/:id` — Retrieve detailed record for a specific research case.
-- `POST /cases` — Register a new study case container with synthetic ID and metadata.
-- `PATCH /cases/:id/status` — Update case workflow status.
+Mock data is for development and demonstration purposes only. It must not be presented as a real patient result or actual model prediction.
 
-### Scan Intake & Inference (`src/services/uploadService.js`)
-- `POST /cases/:id/upload` — Multipart/form-data upload of DICOM or XCA frame.
-- `GET /cases/:id/preprocessing` — Retrieve current image preprocessing status and normalization artifacts.
-- `GET /cases/:id/segmentation-results` — Retrieve deep learning vessel masks and stenosis localization once models are integrated.
+10. Backend Integration
 
----
+The frontend is intended to communicate with backend APIs for image upload, case management, processing status, and segmentation results.
 
-## 7. Milestone 1 Demonstration Sequence
+The API base URL can be configured using VITE_API_BASE_URL if supported by the application.
 
-Use the following step-by-step walkthrough to present the platform to faculty mentors and review committees:
+Backend endpoints and response formats should be confirmed with the backend team. Any integration that is not yet available should be documented as planned rather than implemented.
 
-1. **Researcher Login & Authentication:**
-   - Navigate to `/login`.
-   - Observe the clean medical research layout, required field validation, and password show/hide toggle.
-   - Click **"Auto-fill demo credentials"** to fill sample researcher credentials (`researcher@arteryai.org`), then click **"Sign In to Platform"**.
-   - Optional: Click **"Forgot password?"** to demonstrate the simulated password reset modal.
-   - Navigate to `/register` to inspect the researcher registration screen and password confirmation checks.
+11. Build the Application
 
-2. **Main Research Dashboard:**
-   - Once signed in, you land on `/dashboard`.
-   - View the welcome banner and concise project scope statement highlighting the ARCADE XCA dataset.
-   - Inspect the **4 Summary Metric Cards** (`Total Cases`, `Awaiting Processing`, `Completed Processing`, `Failed Jobs`). These statistics are dynamically computed from the active cases.
-   - Review the **Recent Research Cases** table displaying Case IDs, Vessel Targets, and Status Badges.
+To create a production build:
 
-3. **Registering a New Study Case:**
-   - Click **"Create Case"** in the top navigation or dashboard.
-   - Enter a study name (e.g., `ARCADE Study #088 - Diagonal Branch Analysis`), select a Target Vessel (e.g., `Left Circumflex Artery (LCx)`), and choose an Angiography Modality.
-   - Notice the automatically calculated next synthetic case ID (`ARC-2025-007`).
-   - Click **"Save Research Case"**. You are smoothly redirected to the new case details screen.
+npm run build
 
-4. **Case History & Filtering:**
-   - Click **"Case History"** in the left sidebar.
-   - Notice that the newly created case is immediately visible in the table.
-   - Test the live search input by typing `LAD` or `ARC-2025-001`.
-   - Test the status filter dropdown (e.g., filter by `Completed` or `Awaiting Upload`).
-   - Clear filters using the **"Reset"** button.
+To preview the production build locally, if the preview script is configured:
 
-5. **Uploading an Angiography Scan:**
-   - Click **"Upload Scan"** from the sidebar or click **"Upload Scan"** inside a case without a file.
-   - Select your target case from the dropdown.
-   - Drag and drop or browse to select a sample file (e.g., a `.png` or `.dcm` image).
-   - Observe the file size and name verification.
-   - Click **"Start Simulated Upload"**. Watch the simulated progress bar run. Upon completion, a success confirmation is shown with a link to the case.
+npm run preview
 
-6. **Image Preprocessing Pipeline Monitor:**
-   - Click **"Preprocessing Status"** in the left sidebar.
-   - Review the 5 documented pipeline stages:
-     1. *Image Not Uploaded*
-     2. *Awaiting Preprocessing*
-     3. *Preprocessing In Progress*
-     4. *Preprocessing Completed*
-     5. *Preprocessing Failed*
-   - Test the **"Advance Stage"** button in the case table to interactively demonstrate stage progression.
+12. Development Notes
 
-7. **Case Details & AI Placeholder Notice:**
-   - Open any case (e.g., `ARC-2025-001`).
-   - View the angiography acquisition metadata and frame representation.
-   - Note the right-hand panel clearly marking **AI Artery Segmentation & Stenosis Analysis** as a future milestone feature, complying strictly with research integrity guidelines.
+- Keep components reusable and maintain a consistent UI.
+- Use responsive layouts and accessible form controls.
+- Validate image file types and sizes before upload.
+- Handle API errors and loading states clearly.
+- Keep mock data separate from actual backend responses.
+- Do not display mock segmentation results as real medical findings.
+- Test changes before pushing them to the shared repository.
 
-8. **Resetting Demo Data:**
-   - Click the **"Reset Demo Data"** button in the top navbar to instantly return the repository to the default benchmark cases.
+13. Project Status
 
----
+The frontend is being developed as part of the Infosys Springboard internship project. Features and backend integrations may evolve as development progresses.
 
-## 8. Folder Structure
+This frontend is intended for project development and demonstration. Its interface does not independently provide a clinically validated diagnosis.
 
-```
-├── .env.example              # Template environment configuration
-├── index.html                # Application root HTML with Inter typography & favicon
-├── package.json              # Project scripts and dependencies
-├── postcss.config.js         # PostCSS configuration
-├── tailwind.config.js        # Medical research theme tokens (navy, brand blue)
-├── vite.config.js            # Vite configuration
-└── src/
-    ├── App.jsx               # React Router route registry
-    ├── index.css             # Tailwind base and custom scrollbar
-    ├── main.jsx              # Application entry point with Context providers
-    ├── components/
-    │   ├── Button.jsx        # Accessible buttons with variants and loaders
-    │   ├── DemoBadge.jsx     # Demo mode status indicator & modal
-    │   ├── EmptyState.jsx    # Standardized empty repository state
-    │   ├── FormInput.jsx     # Reusable inputs with password show/hide
-    │   ├── LoadingState.jsx  # Medical spinner & progress state
-    │   ├── Navbar.jsx        # Top bar with user profile & demo helpers
-    │   ├── ProtectedRoute.jsx# Auth route guard
-    │   ├── Sidebar.jsx       # Left navigation with active state styling
-    │   └── StatusBadge.jsx   # Status pill badge for cases
-    ├── context/
-    │   ├── AuthContext.jsx   # Researcher authentication & session management
-    │   └── CaseContext.jsx   # Shared case store with live sync & derived stats
-    ├── layouts/
-    │   ├── AuthLayout.jsx    # Centered layout for Login & Register
-    │   └── DashboardLayout.jsx# Responsive app layout with sidebar & navbar
-    ├── mocks/
-    │   └── mockCases.js      # Synthetic ARCADE cases and benchmark metadata
-    ├── pages/
-    │   ├── CaseDetails.jsx   # Case inspection & model placeholder notices
-    │   ├── CaseHistory.jsx   # Case repository with live search and filtering
-    │   ├── CreateCase.jsx    # Case registration form with validation
-    │   ├── Dashboard.jsx     # Overview with metrics derived from mock cases
-    │   ├── Login.jsx         # Sign in with validation and demo auto-fill
-    │   ├── NotFound.jsx      # 404 handler
-    │   ├── PreprocessingStatus.jsx # 5-stage pipeline monitor
-    │   ├── Register.jsx      # Researcher registration form
-    │   └── UploadScan.jsx    # Drag-and-drop scan intake with simulated progress
-    ├── services/
-    │   ├── api.js            # Axios client with interceptors
-    │   ├── authService.js    # Provisional auth API service
-    │   ├── caseService.js    # Provisional case API service
-    │   └── uploadService.js  # Provisional upload & status service
-    └── utils/
-        ├── constants.js      # Statuses, ARCADE modalities, preprocessing stages
-        └── formatters.js     # Date, byte size, and synthetic ID formatters
-```
+⸻
+
+Project: ArteryAI – Artery Segmentation and Stenosis Detection
+Module: Frontend
+Framework: React + Vite
+Styling: Tailwind CSS
