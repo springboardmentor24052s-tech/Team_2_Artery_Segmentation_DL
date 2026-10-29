@@ -38,12 +38,12 @@ SELECT *
 FROM medical_images
 ORDER BY image_id;
 
--- 8. View segmentation results
+-- 7. View segmentation results
 SELECT *
 FROM segmentation_results
 ORDER BY segmentation_id;
 
---9. View stenosis results
+-- 8. View stenosis results
 SELECT *
 FROM stenosis_results
 ORDER BY stenosis_id;
