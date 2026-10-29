@@ -1,0 +1,17 @@
+ARTERYAI - START HERE
+
+1. Open this folder in VS Code. It must be the folder containing package.json.
+2. Open Terminal > New Terminal.
+3. Run: npm install
+4. Run: npm run dev
+5. Open the localhost URL printed in the terminal.
+
+For the backend, open a SECOND terminal in this folder and run:
+cd backend
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+
+The frontend demo works without trained weights. Real segmentation requires training with properly annotated images. The code does not provide a validated clinical stenosis percentage.
+See README.md for dataset structure and training commands.

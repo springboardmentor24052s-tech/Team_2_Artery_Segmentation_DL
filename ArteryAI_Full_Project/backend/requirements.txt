@@ -1,0 +1,6 @@
+Flask>=3.0,<4
+Flask-Cors>=4.0,<6
+Pillow>=10.0
+numpy>=1.26
+opencv-python-headless>=4.9
+torch>=2.2
