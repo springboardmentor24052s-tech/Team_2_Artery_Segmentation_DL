@@ -1,34 +1,48 @@
-# Artery Segmentation and Stenosis Detection Using Deep Learning
+# Database Design – Artery Segmentation and Stenosis Detection
 
-## Project Overview
-This project aims to segment coronary arteries and detect stenosis from coronary angiography images using advanced deep learning techniques.
+## Overview
+This work focuses on designing and creating the PostgreSQL database schema for the Artery Segmentation and Stenosis Detection using Advanced Deep Learning Techniques project.
 
-## My Contribution: Database Development
-My contribution focuses on the database design and setup for the project using PostgreSQL.
-
-### Technologies Used
+## Technologies Used
 - PostgreSQL
-- Python
-- FastAPI
-- VS Code
+- SQL
 - pgAdmin
+- Visual Studio Code
 
-### Database Components
-The database includes tables for:
-- **users** – stores user information.
-- **cases** – stores case details.
-- **medical_images** – stores uploaded medical image records.
-- **segmentation_results** – stores artery segmentation results.
-- **stenosis_results** – stores stenosis detection details, including location, severity, confidence score, and estimated diameter.
+## Database Name
+`artery_db`
 
-### Work Completed
-- Set up the PostgreSQL database.
-- Created database tables and defined their columns.
-- Checked the database schema and table structures.
-- Executed SQL queries to verify the tables and stored records.
+## Tables Created
+The following tables were created to organize and store project data:
 
-## Project Status
-Database setup and schema verification have been completed for my assigned work. Integration with the application and other project components may be continued as required.
+1. users – User account information.
+2. cases – Case-related information.
+3. medical_images – Medical image information.
+4. segmentation_results – Artery segmentation result information.
+5. stenosis_results – Stenosis detection result information.
 
-## Note
-This repository is part of an academic project.
+## Stenosis Results Table
+The `stenosis_results` table contains the following columns:
+
+- stenosis_id
+- image_id
+- location
+- severity
+- confidence_score
+- created_at
+- estimated_diameter
+
+## Work Completed
+- Designed the relational database schema.
+- Created the PostgreSQL database named `artery_db`.
+- Created the required database tables.
+- Defined columns for storing medical image details, segmentation results, and stenosis detection results.
+- Included fields for stenosis location, severity, confidence score, and estimated diameter.
+- Verified the database table structure and column names using SQL queries.
+
+## Scope of Contribution
+Designed and implemented the PostgreSQL database schema, created the required tables, and verified their structure to support the project's data storage requirements.
+
+## Status
+**Completed:** Database schema creation and verification.
+
