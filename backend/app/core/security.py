@@ -56,7 +56,7 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
     """Decode and validate a JWT token signature and expiration."""
     return jwt.decode(
         token,
-        settings.JWT_SECRET_KEY,l̥l̥l̥
+        settings.JWT_SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
         options={"require": ["exp", "sub", "type"]},
     )

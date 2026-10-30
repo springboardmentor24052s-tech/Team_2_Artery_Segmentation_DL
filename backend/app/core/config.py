@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(
-        default="postgresql+psycopg://postgres:8727@localhost:5432/artery_db",
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/artery_db",
         description="SQLAlchemy database connection string using psycopg 3 driver",
     )
 
