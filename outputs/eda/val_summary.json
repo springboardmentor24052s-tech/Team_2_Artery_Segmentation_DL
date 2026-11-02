@@ -1,0 +1,9 @@
+{
+    "split": "val",
+    "image_count": 200,
+    "json_image_count": 200,
+    "annotation_count": 406,
+    "category_count": 26,
+    "stenosis_annotation_count": 406,
+    "annotation_file": "C:\\Users\\rahul\\Desktop\\Artery_Project\\dataset\\arcade\\arcade\\stenosis\\val\\annotations\\val.json"
+}
