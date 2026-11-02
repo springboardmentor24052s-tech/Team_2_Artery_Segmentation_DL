@@ -1,0 +1,14 @@
+[
+  {
+    "model": "Baseline U-Net",
+    "test_loss": 0.6064883926014105,
+    "test_dice": 0.5321033216545177,
+    "test_iou": 0.39053934870267326
+  },
+  {
+    "model": "Attention U-Net",
+    "test_loss": 0.5934407286097606,
+    "test_dice": 0.5362306046807735,
+    "test_iou": 0.4014103070960598
+  }
+]

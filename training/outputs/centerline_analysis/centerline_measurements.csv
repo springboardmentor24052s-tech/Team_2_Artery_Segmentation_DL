@@ -1,0 +1,17 @@
+model,image,skeleton_pixels,endpoint_count,branch_point_pixel_count
+attention_unet,prediction_01.png,253,13,182
+attention_unet,prediction_02.png,288,22,173
+attention_unet,prediction_03.png,150,6,108
+attention_unet,prediction_04.png,145,5,121
+attention_unet,prediction_05.png,329,19,227
+attention_unet,prediction_06.png,116,14,72
+attention_unet,prediction_07.png,96,6,76
+attention_unet,prediction_08.png,191,11,122
+baseline_unet,prediction_01.png,179,6,137
+baseline_unet,prediction_02.png,262,20,149
+baseline_unet,prediction_03.png,80,6,54
+baseline_unet,prediction_04.png,131,4,100
+baseline_unet,prediction_05.png,172,12,103
+baseline_unet,prediction_06.png,47,1,39
+baseline_unet,prediction_07.png,157,5,111
+baseline_unet,prediction_08.png,70,9,47

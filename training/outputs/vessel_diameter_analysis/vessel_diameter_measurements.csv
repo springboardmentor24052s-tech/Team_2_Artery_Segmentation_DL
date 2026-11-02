@@ -1,0 +1,17 @@
+model,image,sample_count,mean_diameter_px,median_diameter_px,min_diameter_px,max_diameter_px
+attention_unet,prediction_01.png,253,2.831,2.8,2.0,8.0
+attention_unet,prediction_02.png,288,3.149,2.8,2.0,7.194
+attention_unet,prediction_03.png,150,3.218,2.8,2.0,6.0
+attention_unet,prediction_04.png,145,3.434,4.0,2.0,4.394
+attention_unet,prediction_05.png,329,3.433,4.0,2.0,8.0
+attention_unet,prediction_06.png,116,2.841,2.8,2.0,4.394
+attention_unet,prediction_07.png,96,3.199,2.8,2.0,5.6
+attention_unet,prediction_08.png,191,3.225,2.8,2.0,7.194
+baseline_unet,prediction_01.png,179,2.579,2.0,2.0,4.0
+baseline_unet,prediction_02.png,262,3.038,2.8,2.0,5.6
+baseline_unet,prediction_03.png,80,3.28,3.4,2.0,5.6
+baseline_unet,prediction_04.png,131,3.38,4.0,2.0,4.394
+baseline_unet,prediction_05.png,172,3.45,4.0,2.0,6.394
+baseline_unet,prediction_06.png,47,2.86,2.8,2.0,4.0
+baseline_unet,prediction_07.png,157,2.919,2.8,2.0,5.6
+baseline_unet,prediction_08.png,70,2.811,2.8,2.0,4.0
