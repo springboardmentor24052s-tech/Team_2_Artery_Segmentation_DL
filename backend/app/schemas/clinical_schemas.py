@@ -21,7 +21,20 @@ class UserNameUpdateResponse(BaseModel):
     full_name: str
     message: str
 
-# --- Case & Medical Image Schemas ---
+# --- Case Schemas ---
+class CaseCreateRequest(BaseModel):
+    user_id: Optional[int] = Field(None, description="Integer user ID referencing users table (if available in schema)")
+    case_name: str = Field(..., min_length=1, max_length=150)
+    imaging_modality: Optional[str] = Field("CTA", max_length=50)
+    target_vessel: Optional[str] = Field("LAD", max_length=100)
+    status: Optional[str] = Field("pending", max_length=30)
+
+class CaseUpdateRequest(BaseModel):
+    case_name: Optional[str] = Field(None, min_length=1, max_length=150)
+    imaging_modality: Optional[str] = Field(None, max_length=50)
+    target_vessel: Optional[str] = Field(None, max_length=100)
+    status: Optional[str] = Field(None, max_length=30)
+
 class CaseResponse(BaseModel):
     case_id: int
     user_id: Optional[Union[int, str]] = None
@@ -30,6 +43,19 @@ class CaseResponse(BaseModel):
     target_vessel: Optional[str] = None
     status: str
     created_at: Optional[datetime] = None
+
+# --- Medical Image Schemas ---
+class MedicalImageCreateRequest(BaseModel):
+    image_name: str = Field(..., min_length=1, max_length=255)
+    image_path: str = Field(..., min_length=1)
+    image_format: Optional[str] = Field("DICOM", max_length=10)
+    image_size: Optional[int] = Field(None, ge=0)
+
+class MedicalImageUpdateRequest(BaseModel):
+    image_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    image_path: Optional[str] = Field(None, min_length=1)
+    image_format: Optional[str] = Field(None, max_length=10)
+    image_size: Optional[int] = Field(None, ge=0)
 
 class MedicalImageResponse(BaseModel):
     image_id: int
@@ -40,7 +66,24 @@ class MedicalImageResponse(BaseModel):
     image_size: Optional[int] = None
     uploaded_at: Optional[datetime] = None
 
-# --- Results Schemas ---
+class MessageActionResponse(BaseModel):
+    message: str
+    detail: Optional[str] = None
+
+# --- Segmentation Results Schemas ---
+class SegmentationResultCreateRequest(BaseModel):
+    mask_path: Optional[str] = None
+    model_name: Optional[str] = Field(None, max_length=100)
+    dice_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    iou_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    processed_mask_path: Optional[str] = None
+    centerline_path: Optional[str] = None
+    model_version: Optional[str] = Field(None, max_length=50)
+    precision_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    recall_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    f1_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    mean_vessel_diameter: Optional[float] = None
+
 class SegmentationResultResponse(BaseModel):
     segmentation_id: int
     image_id: int
@@ -56,6 +99,13 @@ class SegmentationResultResponse(BaseModel):
     recall_score: Optional[float] = None
     f1_score: Optional[float] = None
     mean_vessel_diameter: Optional[float] = None
+
+# --- Stenosis Results Schemas ---
+class StenosisResultCreateRequest(BaseModel):
+    location: Optional[str] = None
+    severity: Optional[str] = Field(None, max_length=30)
+    confidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    estimated_diameter: Optional[float] = None
 
 class StenosisResultResponse(BaseModel):
     stenosis_id: int
@@ -79,3 +129,78 @@ class AnalyticsSummaryResponse(BaseModel):
     total_stenosis_results: int
     model_performance: List[ModelDiceScore]
     source: str = "sql_database"
+
+class RecentActivityItem(BaseModel):
+    activity_type: str  # "segmentation" or "stenosis"
+    record_id: int
+    image_id: int
+    model_or_severity: Optional[str] = None
+    metric_or_confidence: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+class DashboardAnalyticsResponse(BaseModel):
+    total_users: int
+    total_cases: int
+    total_images: int
+    total_stenosis_detections: int
+    recent_activity: List[RecentActivityItem]
+    source: str = "sql_database"
+
+# --- result_queries.sql Queries 4 to 11 Schemas ---
+
+class DetailedModelPerformanceResponse(BaseModel):
+    model_name: str
+    total_results: int
+    average_dice: Optional[float] = None
+    average_iou: Optional[float] = None
+    average_precision: Optional[float] = None
+    average_recall: Optional[float] = None
+    average_f1: Optional[float] = None
+
+class StenosisSeverityDistributionResponse(BaseModel):
+    severity: Optional[str] = None
+    total_cases: int
+    average_confidence: Optional[float] = None
+
+class CaseAnalysisReportItem(BaseModel):
+    case_id: int
+    case_name: Optional[str] = None
+    imaging_modality: Optional[str] = None
+    target_vessel: Optional[str] = None
+    image_id: int
+    image_name: Optional[str] = None
+    model_name: Optional[str] = None
+    dice_score: Optional[float] = None
+    iou_score: Optional[float] = None
+    severity: Optional[str] = None
+    confidence_score: Optional[float] = None
+    estimated_diameter: Optional[float] = None
+
+class CaseSummaryCountItem(BaseModel):
+    case_id: int
+    case_name: Optional[str] = None
+    total_images: int
+    total_segmentation_results: int
+    total_stenosis_results: int
+
+class ForeignKeyConstraintInfo(BaseModel):
+    table_name: str
+    column_name: str
+    referenced_table: str
+    referenced_column: str
+    constraint_name: str
+
+class DatabaseTableInfo(BaseModel):
+    table_name: str
+
+class TableColumnInfo(BaseModel):
+    table_name: str
+    column_name: str
+    data_type: str
+    is_nullable: str
+    column_default: Optional[str] = None
+
+class DataConsistencyCheckItem(BaseModel):
+    check_name: str
+    invalid_records: int
+

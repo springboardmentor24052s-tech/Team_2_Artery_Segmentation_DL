@@ -1,571 +1,860 @@
-# Artery Segmentation and Stenosis Detection Using Advanced Deep Learning Techniques
-## Backend REST API & Database Documentation
+# Artery Segmentation and Stenosis Detection
+## Backend REST API & Database Service
 
-A modular, production-ready backend service built with **FastAPI**, **SQLAlchemy 2.x**, **PostgreSQL** (via `psycopg 3`), **Pydantic 2**, and **Argon2** password hashing. It provides authentication, role-based access control (RBAC), and SQL-backed clinical endpoints for querying medical cases, imaging metadata, artery segmentation metrics, stenosis detection results, and model performance analytics.
+A production-ready backend built with **FastAPI**, **SQLAlchemy 2.x**, **PostgreSQL** (via `psycopg 3`), **Pydantic 2**, and **Argon2** password hashing. It provides authentication, role-based access control (RBAC), and SQL-backed clinical endpoints for querying medical examination cases, imaging metadata, artery segmentation metrics, stenosis detection results, model performance analytics, and schema diagnostics.
 
 ---
 
 ## Table of Contents
-1. [Project Overview & Architecture](#1-project-overview--architecture)
-2. [Project Structure](#2-project-structure)
-3. [Prerequisites & Installation](#3-prerequisites--installation)
-4. [Environment Configuration](#4-environment-configuration)
-5. [Database Setup & Schema Reference](#5-database-setup--schema-reference)
-6. [Running the API](#6-running-the-api)
-7. [Swagger UI & API Exploration](#7-swagger-ui--api-exploration)
-8. [Complete API Endpoint Reference](#8-complete-api-endpoint-reference)
-9. [Detailed SQL Query Reference](#9-detailed-sql-query-reference)
-10. [SQL Query-to-Endpoint Mapping](#10-sql-query-to-endpoint-mapping)
-11. [Authentication & Authorization Flow](#11-authentication--authorization-flow)
-12. [Testing Guide](#12-testing-guide)
-13. [Example API Usage (PowerShell & cURL)](#13-example-api-usage-powershell--curl)
-14. [Troubleshooting Guide](#14-troubleshooting-guide)
-15. [Known Issues & Limitations](#15-known-issues--limitations)
+
+1. [Project Overview](#1-project-overview)
+2. [Problem Statement & Objectives](#2-problem-statement--objectives)
+3. [Key Features](#3-key-features)
+4. [System Architecture](#4-system-architecture)
+5. [Technology Stack](#5-technology-stack)
+6. [Project Structure](#6-project-structure)
+7. [Database Design](#7-database-design)
+8. [Prerequisites & Installation](#8-prerequisites--installation)
+9. [Environment Configuration](#9-environment-configuration)
+10. [Database Initialization](#10-database-initialization)
+11. [Running the API](#11-running-the-api)
+12. [Swagger UI & API Exploration](#12-swagger-ui--api-exploration)
+13. [Complete API Endpoint Reference](#13-complete-api-endpoint-reference)
+14. [SQL Query-to-Endpoint Mapping](#14-sql-query-to-endpoint-mapping)
+15. [Authentication & Authorization Flow](#15-authentication--authorization-flow)
+16. [Testing Guide](#16-testing-guide)
+17. [Example API Usage](#17-example-api-usage)
+18. [Troubleshooting Guide](#18-troubleshooting-guide)
+19. [Known Issues & Limitations](#19-known-issues--limitations)
+20. [Completed vs. Planned Features](#20-completed-vs-planned-features)
 
 ---
 
-## 1. Project Overview & Architecture
+## 1. Project Overview
 
-### Purpose
-The **Artery Segmentation and Stenosis Detection** backend serves as the API foundation for automated coronary and peripheral artery image analysis. It manages user authentication, authorization, clinical examination cases, imaging metadata, segmentation mask evaluations (Dice, IoU, centerline, vessel diameter), stenosis severity assessments, and deep learning model benchmarking.
+The **Artery Segmentation and Stenosis Detection** system is an Infosys Springboard Internship project targeting automated coronary and peripheral artery image analysis. This repository contains the backend API service that manages:
 
-### Implemented Architecture
-The backend is structured into clear layers:
-- **Presentation Layer (FastAPI Routers):** Mounts versioned routes (`/api/v1/auth`, `/api/v1/users`, `/api/v1/sql`, `/api/v1/health`) with Pydantic request/response validation.
-- **Security & Authorization Layer:** Argon2 password hashing via `pwdlib`, signed JWT access tokens with short TTLs (30m), persistent SHA-256 hashed refresh tokens with rotation and revocation, and role-based access dependencies (`RoleChecker`).
-- **Service Layer:** Decoupled business logic (`AuthService`, `UserService`, `SQLClinicalService`) isolating route handlers from raw SQL and ORM queries.
-- **Persistence Layer:** SQLAlchemy 2.x with connection pooling (`get_db` dependency) and parameterized SQL execution via the PostgreSQL `psycopg 3` driver.
+- **User accounts** with role-based access and secure session management.
+- **Clinical examination cases** linking a patient examination to a registered user.
+- **Medical image metadata** tracking uploaded imaging files per case.
+- **Segmentation results** storing deep learning model outputs (Dice, IoU, precision, recall, F1, vessel diameter) per image.
+- **Stenosis detection results** tracking lesion location, severity, confidence score, and estimated diameter per image.
+- **Analytical queries** computing model performance benchmarks and clinical population statistics.
+- **Database diagnostic endpoints** for administrators to verify schema integrity and data consistency.
+
+---
+
+## 2. Problem Statement & Objectives
+
+Coronary artery disease (CAD) is a leading cause of mortality worldwide. Manual analysis of CT angiography (CTA) or MR angiography images is time-consuming and subject to inter-observer variability. This project aims to:
+
+- Provide an **API backbone** for a deep learning-based artery segmentation and stenosis detection pipeline.
+- Enable structured **storage and retrieval** of model evaluation results across multiple segmentation architectures.
+- Support **clinical case management** to track patients, imaging studies, and analysis outcomes.
+- Expose **benchmarking analytics** to compare segmentation model performance objectively.
+
+> [!NOTE]
+> This backend currently handles data management, authentication, and query execution. The deep learning inference pipeline (model training, DICOM ingestion, mask generation) is a separate component and is **not** invoked by this API service.
+
+---
+
+## 3. Key Features
+
+| Feature | Status |
+|---|:---:|
+| User registration with Argon2 password hashing | ✅ Implemented |
+| JWT access token issuance (HS256, 30-min TTL) | ✅ Implemented |
+| SHA-256 hashed refresh tokens with rotation & revocation | ✅ Implemented |
+| Token reuse attack detection (refresh token replay) | ✅ Implemented |
+| Role-based access control (`RoleChecker` dependency) | ✅ Implemented |
+| Clinical case management CRUD | ✅ Implemented |
+| Medical image metadata CRUD | ✅ Implemented |
+| Segmentation result ingestion & retrieval | ✅ Implemented |
+| Stenosis result ingestion & retrieval | ✅ Implemented |
+| SQL-backed analytics (count, Dice avg, severity distribution) | ✅ Implemented |
+| Complete model performance analytics (IoU, precision, recall, F1) | ✅ Implemented |
+| Multi-table case analysis report (JOIN query) | ✅ Implemented |
+| Case-wise summary counts | ✅ Implemented |
+| Dashboard analytics (all-table counts + recent activity) | ✅ Implemented |
+| Database diagnostic endpoints (admin-only, `information_schema`) | ✅ Implemented |
+| Interactive Swagger UI with persistent authorization | ✅ Implemented |
+| Automated test suite (45 tests via SQLite in-memory fixture) | ✅ Implemented |
+| Deep learning inference / DICOM ingestion | ⏳ Planned |
+| Alembic database migrations | ⏳ Configured (no migrations authored yet) |
+
+---
+
+## 4. System Architecture
 
 ```text
-               +-------------------------------------------+
-               |     Client / Frontend / Swagger UI        |
-               +-------------------------------------------+
-                                     |
-                                     | (HTTP REST + Bearer JWT)
-                                     v
-               +-------------------------------------------+
-               |        FastAPI Application Entry          |
-               |        (backend/app/extended_main.py)     |
-               +-------------------------------------------+
-                                     |
-                     +---------------+---------------+
-                     |                               |
-                     v                               v
-    +----------------------------------+   +----------------------------------+
-    | Authentication & User Routers    |   | SQL-Backed Clinical Routers      |
-    | (/api/v1/auth, /api/v1/users)    |   | (/api/v1/sql/*)                  |
-    +----------------------------------+   +----------------------------------+
-                     |                               |
-                     v                               v
-    +----------------------------------+   +----------------------------------+
-    | AuthService & UserService        |   | SQLClinicalService               |
-    | (SQLAlchemy ORM + Argon2/JWT)    |   | (Parameterized SQL Queries)      |
-    +----------------------------------+   +----------------------------------+
-                     |                               |
-                     +---------------+---------------+
-                                     |
-                                     v
-               +-------------------------------------------+
-               |      SQLAlchemy Session (app.db.session)   |
-               |      Engine: psycopg 3 connection pool    |
-               +-------------------------------------------+
-                                     |
-                                     v
-               +-------------------------------------------+
-               |          PostgreSQL Database              |
-               | (users, cases, medical_images, results)   |
-               +-------------------------------------------+
+         Client / Frontend / Swagger UI
+                     │
+                     │  HTTP REST + Bearer JWT
+                     ▼
+     ┌─────────────────────────────────────┐
+     │   FastAPI Application Entry Point   │
+     │   backend/app/extended_main.py      │
+     └──────────────┬──────────────────────┘
+                    │
+         ┌──────────┴───────────┐
+         ▼                      ▼
+ ┌───────────────────┐  ┌───────────────────────────┐
+ │ Auth & User       │  │ SQL-Backed Clinical Router │
+ │ Routers           │  │ /api/v1/sql/*              │
+ │ /api/v1/auth      │  └────────────┬──────────────┘
+ │ /api/v1/users     │               │
+ └────────┬──────────┘               ▼
+          │               ┌─────────────────────────┐
+          ▼               │   SQLClinicalService     │
+ ┌───────────────────┐    │   (Parameterized SQL)    │
+ │ AuthService       │    └────────────┬────────────┘
+ │ UserService       │                 │
+ │ (ORM + Argon2)    │                 │
+ └────────┬──────────┘                 │
+          └──────────────┬─────────────┘
+                         ▼
+            ┌─────────────────────────┐
+            │   SQLAlchemy Session    │
+            │   psycopg 3 conn pool   │
+            └────────────┬────────────┘
+                         ▼
+            ┌─────────────────────────┐
+            │   PostgreSQL Database   │
+            │   users, cases,         │
+            │   medical_images,       │
+            │   segmentation_results, │
+            │   stenosis_results,     │
+            │   refresh_tokens        │
+            └─────────────────────────┘
 ```
+
+### Layer Responsibilities
+
+| Layer | Components | Responsibility |
+|---|---|---|
+| **Presentation** | `auth.py`, `users.py`, `sql_clinical.py` | Route handling, Pydantic request/response validation, HTTP status codes |
+| **Security & Auth** | `security.py`, `dependencies.py` | Argon2 hashing, JWT sign/verify, `RoleChecker` RBAC |
+| **Service** | `AuthService`, `UserService`, `SQLClinicalService` | Business logic, ORM operations, parameterized SQL execution |
+| **Persistence** | `session.py`, `base.py`, models | SQLAlchemy engine, connection pool, ORM table definitions |
 
 ---
 
-## 2. Project Structure
+## 5. Technology Stack
+
+| Component | Technology | Version |
+|---|---|---|
+| Web Framework | FastAPI | ≥ 0.115.0 |
+| ASGI Server | Uvicorn (with standard extras) | ≥ 0.30.0 |
+| Data Validation | Pydantic v2 (with email validator) | ≥ 2.9.0 |
+| Settings Management | pydantic-settings | ≥ 2.5.0 |
+| ORM | SQLAlchemy 2.x | ≥ 2.0.35 |
+| PostgreSQL Driver | psycopg 3 (binary) | ≥ 3.2.0 |
+| Password Hashing | pwdlib with Argon2 hasher | ≥ 0.2.0 |
+| JWT Tokens | PyJWT with cryptography | ≥ 2.9.0 |
+| Database Migrations | Alembic | ≥ 1.13.0 |
+| Testing Framework | pytest | ≥ 8.3.0 |
+| Test HTTP Client | httpx | ≥ 0.27.0 |
+| Runtime | Python | 3.10 – 3.12 |
+
+---
+
+## 6. Project Structure
 
 ```text
 Artery project/
-├── .env                              # Local environment variables (Git-ignored, never committed)
-├── .env.example                      # Template with safe configuration placeholders
-├── .gitignore                        # Git exclusion rules (.env, .venv, pycache, caches)
-├── LICENSE                           # Project open-source license
-├── README.md                         # This documentation file
-├── requirements.txt                  # Python dependencies pinned with versions
+├── .env                              # Local secrets (Git-ignored — never commit)
+├── .env.example                      # Safe configuration template with placeholders
+├── LICENSE
+├── README.md                         # This file
+├── requirements.txt                  # Pinned Python dependencies
 │
-├── auth_queries.sql                  # Canonical SQL queries for user checks, cases, images, & results
-├── database_work.sql                 # DDL schema definitions and ALTER TABLE column definitions
-├── result_queries.sql                # Analytical SQL queries (counts, Dice score averages)
+├── database/                         # SQL reference files (read-only schema & queries)
+│   ├── database_work.sql             # DDL: CREATE TABLE and ALTER TABLE definitions
+│   ├── auth_queries.sql              # DML: User, case, image, and result SELECT/UPDATE queries
+│   └── result_queries.sql            # Analytical queries: counts, aggregations, diagnostics
 │
 ├── backend/
-│   ├── alembic.ini                   # Alembic database migration configuration
-│   ├── alembic/                      # Alembic migration environment
-│   │   ├── env.py                    # Migration runtime script
+│   ├── alembic.ini                   # Alembic migration configuration
+│   ├── alembic/
+│   │   ├── env.py                    # Migration runtime environment
 │   │   └── script.py.mako            # Migration revision template
 │   │
-│   └── app/                          # Core application package
+│   └── app/
 │       ├── __init__.py
-│       ├── main.py                   # Base application (Auth, Users, /health probes)
-│       ├── extended_main.py          # RECOMMENDED entry point (Auth + SQL-backed clinical APIs)
+│       ├── main.py                   # Base entry point (Auth + Users + Health only)
+│       ├── extended_main.py          # ★ Recommended entry point (all endpoints)
 │       │
-│       ├── api/                      # Routing & Security dependencies
-│       │   ├── __init__.py
-│       │   ├── dependencies.py       # JWT extraction, user validation, RoleChecker RBAC
+│       ├── api/
+│       │   ├── dependencies.py       # get_current_user, RoleChecker RBAC dependency
 │       │   └── v1/
-│       │       ├── __init__.py       # Base v1 router aggregating auth and users
-│       │       ├── auth.py           # 5 auth routes (register, login, refresh, logout, change-password)
-│       │       ├── users.py          # 2 user routes (GET /me, PATCH /me)
-│       │       └── sql_clinical.py   # 11 SQL-backed clinical & analytics routes
+│       │       ├── __init__.py       # v1 router aggregating auth and users routers
+│       │       ├── auth.py           # 5 authentication routes
+│       │       ├── users.py          # 2 user profile routes
+│       │       └── sql_clinical.py   # 39 SQL-backed clinical & analytics routes
 │       │
-│       ├── core/                     # Configuration and cryptographic security
-│       │   ├── config.py             # Pydantic BaseSettings loading .env with robust path resolution
-│       │   └── security.py           # Argon2 password hashing, JWT encode/decode, token hashing
+│       ├── core/
+│       │   ├── config.py             # pydantic-settings: loads .env, provides Settings
+│       │   └── security.py           # Argon2 hash/verify, JWT encode/decode, SHA-256 hashing
 │       │
-│       ├── db/                       # Database engine and sessions
+│       ├── db/
 │       │   ├── base.py               # SQLAlchemy DeclarativeBase
-│       │   └── session.py            # PostgreSQL engine (psycopg 3) and get_db dependency
+│       │   └── session.py            # PostgreSQL engine and get_db session dependency
 │       │
-│       ├── models/                   # SQLAlchemy ORM models
+│       ├── models/
 │       │   ├── __init__.py
-│       │   ├── user.py               # User table model (UUID PK, role, active status, timestamps)
-│       │   └── refresh_token.py      # RefreshToken model (SHA-256 hashed, revocable sessions)
+│       │   ├── user.py               # User ORM model (UUID PK, role enum, active flag)
+│       │   └── refresh_token.py      # RefreshToken ORM model (SHA-256 hash, revocation)
 │       │
-│       ├── schemas/                  # Pydantic validation schemas
+│       ├── schemas/
 │       │   ├── auth.py               # LoginRequest, TokenResponse, PasswordChangeRequest
 │       │   ├── user.py               # UserRegister, UserUpdate, UserResponse
-│       │   └── clinical_schemas.py   # SQL query request and response schemas
+│       │   └── clinical_schemas.py   # All clinical request/response Pydantic models
 │       │
-│       └── services/                 # Business logic and query execution
-│           ├── auth_service.py       # User registration, token rotation, password change
-│           ├── user_service.py       # Profile fetching and email uniqueness validation
-│           └── sql_clinical_service.py # Parameterized execution of queries from SQL files
+│       └── services/
+│           ├── auth_service.py       # Registration, authentication, token rotation
+│           ├── user_service.py       # Profile lookup and update
+│           └── sql_clinical_service.py  # All 31+ parameterized SQL query methods
 │
-└── tests/                            # Automated pytest suite (Runs against in-memory SQLite)
-    ├── conftest.py                   # TestClient fixtures, database session overrides, user fixtures
-    ├── test_auth.py                  # 14 tests covering authentication, tokens, and password changes
-    ├── test_users.py                 # 8 tests covering profiles, token validation, and RBAC
-    └── test_clinical_endpoints.py    # 13 tests covering SQL-backed clinical & analytics queries
+└── tests/
+    ├── conftest.py                   # Fixtures: in-memory SQLite, TestClient, auth tokens
+    ├── test_auth.py                  # 14 tests: auth flows, tokens, password management
+    ├── test_clinical_endpoints.py    # 23 tests: clinical CRUD, analytics, RBAC
+    └── test_users.py                 # 8 tests: profile read/update, auth enforcement
 ```
 
-### Application Entry Points Explained
-- **`app.extended_main:app` (Recommended):** Starts the complete API exposing **all 20 endpoints**: Authentication, Users, Health probes, and all 11 SQL-backed Clinical and Analytics endpoints.
-- **`app.main:app` (Base Auth Only):** Exposes only the 7 base authentication, user profile, and health endpoints (does not mount the `/api/v1/sql` router).
+### Application Entry Points
+
+| Entry Point | Command | Endpoints Exposed |
+|---|---|---|
+| `app.extended_main:app` ★ | `uvicorn app.extended_main:app` | **48 operations** (all Auth + Users + Health + SQL Clinical) |
+| `app.main:app` | `uvicorn app.main:app` | **9 operations** (Auth + Users + Health only; no `/api/v1/sql` router) |
 
 ---
 
-## 3. Prerequisites & Installation
+## 7. Database Design
 
-### Prerequisites
-- **Operating System:** Windows 10/11 (PowerShell 5.1 or PowerShell 7+) or Linux/macOS
-- **Python:** Python 3.10 to 3.12 (Python 3.12.10 recommended and verified)
-- **PostgreSQL Database:** PostgreSQL 15, 16, 17, or 18 running locally or accessible over network
+### ORM Tables (managed by SQLAlchemy, used by authentication routes)
 
-### Step 1: Clone / Navigate to Project Directory
+| Table | Primary Key | Key Columns |
+|---|---|---|
+| `users` | `id UUID` | `name`, `email` (unique), `password_hash`, `role`, `is_active`, `created_at`, `updated_at` |
+| `refresh_tokens` | `id UUID` | `user_id` (FK → `users.id`), `token_hash` (SHA-256), `expires_at`, `revoked_at` |
+
+**User roles** (`users.role`): `radiologist` · `medical_researcher` · `data_scientist` · `administrator`
+
+### Clinical Tables (defined in `database/database_work.sql`, used by SQL-backed endpoints)
+
+| Table | Primary Key | Key Columns | Foreign Keys |
+|---|---|---|---|
+| `users` | `user_id SERIAL` | `full_name`, `email`, `password_hash`, `created_at` | — |
+| `cases` | `case_id SERIAL` | `case_name`, `imaging_modality`, `target_vessel`, `status`, `created_at` | `user_id → users.user_id` |
+| `medical_images` | `image_id SERIAL` | `image_name`, `image_path`, `image_format`, `image_size`, `uploaded_at` | `case_id → cases.case_id` |
+| `segmentation_results` | `segmentation_id SERIAL` | `mask_path`, `model_name`, `dice_score`, `iou_score`, `precision_score`, `recall_score`, `f1_score`, `mean_vessel_diameter`, `model_version`, `centerline_path` | `image_id → medical_images.image_id` |
+| `stenosis_results` | `stenosis_id SERIAL` | `location`, `severity`, `confidence_score`, `estimated_diameter`, `created_at` | `image_id → medical_images.image_id` |
+
+> [!IMPORTANT]
+> There is a **user table schema divergence** between the ORM layer and the SQL clinical schema. The ORM `users` table uses `id UUID` and column `name`, while `database_work.sql` specifies `user_id SERIAL` and `full_name`. The clinical endpoints operate against the SQL schema version. See [§19 Known Issues](#19-known-issues--limitations) for details.
+
+---
+
+## 8. Prerequisites & Installation
+
+### Requirements
+
+- **Python** 3.10 to 3.12 (3.12.10 tested and verified)
+- **PostgreSQL** 15–18 running locally or over network
+- **Windows** PowerShell 5.1+ or PowerShell 7, or macOS/Linux bash
+
+### Step 1 — Navigate to the project directory
+
 ```powershell
-cd "c:\Users\Rohan R\Documents\INFOSYS SPRINGBOARD INTERNSHIP 7\Artery project"
+cd "Artery project"
 ```
 
-### Step 2: Virtual Environment Setup
-If `.venv` already exists in the project root, activate it directly. Otherwise, create it first:
+### Step 2 — Create and activate a virtual environment
+
 ```powershell
-# Create virtual environment (if not already created)
+# Create (if not already present)
 python -m venv .venv
 
 # Activate on Windows PowerShell
 .\.venv\Scripts\Activate.ps1
+```
 
-# (Alternative for macOS/Linux bash)
-# source .venv/bin/activate
+```bash
+# Activate on macOS / Linux
+source .venv/bin/activate
 ```
 
 > [!NOTE]
-> If PowerShell blocks script execution with an `ExecutionPolicy` error, run:
+> If PowerShell blocks script execution, run this first:
 > `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
 
-### Step 3: Install Required Dependencies
-All dependencies are specified in [`requirements.txt`](requirements.txt):
+### Step 3 — Install dependencies
+
 ```powershell
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Key packages installed:
-- `fastapi` & `uvicorn[standard]`: High-performance ASGI web framework and server
-- `sqlalchemy` (2.x): Object Relational Mapper and database toolkit
-- `psycopg[binary]` (3.x): Modern PostgreSQL driver
-- `pwdlib[argon2]`: Password hashing library implementing Argon2
-- `pyjwt[crypto]`: JSON Web Token encoding and cryptographic signature validation
-- `pydantic` (2.x) & `pydantic-settings`: Data validation and typed environment settings
-- `pytest` & `httpx`: Automated testing framework and ASGI test client
-
 ---
 
-## 4. Environment Configuration
+## 9. Environment Configuration
 
-Application settings are managed by [`backend/app/core/config.py`](backend/app/core/config.py) using `pydantic-settings`. It discovers the `.env` file from the project root automatically.
+Configuration is loaded from the `.env` file in the project root by [`backend/app/core/config.py`](backend/app/core/config.py) using `pydantic-settings`.
 
-### Setting Up `.env`
-Copy the template file [`.env.example`](.env.example) to `.env`:
+### Setup
+
 ```powershell
 Copy-Item .env.example .env
+# Then open .env in your editor and fill in the values
 ```
 
-### Configuration Variables Reference
-Open `.env` in your text editor and configure the following variables:
+### Configuration Variables
 
-| Variable | Required | Default / Example | Purpose |
-|---|---|---|---|
-| `DATABASE_URL` | Yes | `postgresql+psycopg://postgres:<PASSWORD>@localhost:5432/artery_db` | Connection string for SQLAlchemy using psycopg 3 driver |
-| `JWT_SECRET_KEY` | Yes | *Random 32+ char string* | Cryptographic secret used to sign and verify JWT tokens |
-| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm (HMAC with SHA-256) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Lifespan of short-lived JWT access tokens |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `7` | Lifespan of persistent refresh tokens in database |
-| `ENVIRONMENT` | No | `development` | Runtime environment (`development`, `testing`, `production`) |
-| `ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated list of allowed CORS origins for frontend web apps |
+| Variable | Required | Example Value | Description |
+|---|:---:|---|---|
+| `DATABASE_URL` | **Yes** | `postgresql+psycopg://postgres:your_password@localhost:5432/artery_db` | SQLAlchemy connection string using the psycopg 3 driver |
+| `JWT_SECRET_KEY` | **Yes** | *(generate a random 32+ character string)* | Secret used to sign and verify JWT tokens |
+| `JWT_ALGORITHM` | No | `HS256` | JWT algorithm (default: HS256) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `30` | Access token lifetime in minutes |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | No | `7` | Refresh token lifetime in days |
+| `ENVIRONMENT` | No | `development` | Runtime label (`development`, `testing`, `production`) |
+| `ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins for frontend apps |
 
-> [!IMPORTANT]
-> **Password Special Characters:** If your PostgreSQL password contains reserved URI characters such as `@`, `:`, `#`, `%`, or `/`, URL-encode them (e.g. `@` becomes `%40`, `#` becomes `%23`).
-> **Security:** Never commit `.env` to Git. The project's [`.gitignore`](.gitignore) excludes `.env`, `.venv/`, `.pytest_cache/`, and `__pycache__/`.
-
----
-
-## 5. Database Setup & Schema Reference
-
-### 1. PostgreSQL Multi-Instance Port Detection (Windows)
-When multiple PostgreSQL versions are installed side-by-side on Windows, each instance listens on a different port:
-- `postgresql-x64-17` -> default port **5432**
-- `postgresql-x64-18` -> default port **5433**
-
-To verify which service is running and inspect its listening port:
+**Generate a secure `JWT_SECRET_KEY`:**
 ```powershell
-Get-Service *postgres*
-Get-Content "C:\Program Files\PostgreSQL\17\data\postgresql.conf" | Select-String "port ="
-Get-Content "C:\Program Files\PostgreSQL\18\data\postgresql.conf" | Select-String "port ="
+.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-### 2. Creating the Database in pgAdmin or psql
-1. Open **pgAdmin 4** (or connect via `psql -U postgres`).
-2. Verify the server connection host (`localhost`), port (`5432`), and username (`postgres`).
-3. If `artery_db` does not exist:
-   - In pgAdmin: Right-click **Databases** > **Create** > **Database...**, name it `artery_db`, set Owner to `postgres`, and click **Save**.
-   - In psql:
-     ```sql
-     CREATE DATABASE artery_db;
-     ```
-
-### 3. Schema Definitions in `database_work.sql`
-[`database_work.sql`](database_work.sql) defines the target relational schema:
-- **`users`:** `user_id SERIAL PRIMARY KEY`, `full_name VARCHAR(100)`, `email VARCHAR(150) UNIQUE`, `password_hash TEXT`, `created_at TIMESTAMP`.
-- **`cases`:** `case_id SERIAL PRIMARY KEY`, `user_id INTEGER REFERENCES users(user_id)`, `case_name VARCHAR(150)`, `imaging_modality VARCHAR(50)`, `target_vessel VARCHAR(100)`, `status VARCHAR(30) DEFAULT 'pending'`, `created_at TIMESTAMP`.
-- **`medical_images`:** `image_id SERIAL PRIMARY KEY`, `case_id INTEGER REFERENCES cases(case_id)`, `image_name VARCHAR(255)`, `image_path TEXT`, `image_format VARCHAR(10)`, `image_size BIGINT`, `uploaded_at TIMESTAMP`.
-- **`segmentation_results`:** `segmentation_id SERIAL PRIMARY KEY`, `image_id INTEGER REFERENCES medical_images(image_id)`, `mask_path TEXT`, `model_name VARCHAR(100)`, `dice_score NUMERIC(6,5)`, `created_at TIMESTAMP`.
-  - Extended metrics: `iou_score`, `processed_mask_path`, `centerline_path`, `model_version`, `precision_score`, `recall_score`, `f1_score`, `mean_vessel_diameter`.
-- **`stenosis_results`:** `stenosis_id SERIAL PRIMARY KEY`, `image_id INTEGER REFERENCES medical_images(image_id)`, `location TEXT`, `severity VARCHAR(30)`, `confidence_score NUMERIC(6,5)`, `created_at TIMESTAMP`, `estimated_diameter NUMERIC(10,4)`.
+> [!CAUTION]
+> Never commit `.env` to version control. It is excluded by `.gitignore`. If your PostgreSQL password contains `@`, `:`, `#`, or `/`, URL-encode those characters (e.g. `@` → `%40`).
 
 ---
 
-## 6. Running the API
+## 10. Database Initialization
 
-### Recommended Startup Command (Windows PowerShell)
-To run the complete application exposing both authentication and all SQL-backed clinical endpoints:
+### 1. Verify PostgreSQL is running
+
+```powershell
+# Windows: check service status
+Get-Service *postgres*
+
+# Check the port (default 5432; may differ for multiple side-by-side installs)
+Get-Content "C:\Program Files\PostgreSQL\17\data\postgresql.conf" | Select-String "^port"
+```
+
+### 2. Create the database
+
+Using psql:
+```sql
+CREATE DATABASE artery_db;
+```
+
+Or in pgAdmin 4: right-click **Databases** → **Create** → **Database…**, name it `artery_db`.
+
+### 3. Apply the clinical schema
+
+Open `database/database_work.sql` in pgAdmin's Query Tool (connected to `artery_db`) and execute it to create the five clinical tables.
+
+> [!WARNING]
+> `database/database_work.sql` line 53 contains a premature semicolon that terminates an `ALTER TABLE` statement early, causing a syntax error when run as a single script. Change the `;` at the end of line 53 to `,` before executing. See [§19 Known Issues](#19-known-issues--limitations).
+
+### 4. ORM tables (refresh_tokens, auth users)
+
+The ORM tables (`users` and `refresh_tokens`) are created automatically on startup via `Base.metadata.create_all(bind=engine)` in the application lifespan handler. No manual DDL is needed for them.
+
+---
+
+## 11. Running the API
+
+### Recommended startup (Windows PowerShell)
 
 ```powershell
 $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe -m uvicorn app.extended_main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### macOS / Linux Alternative
+### macOS / Linux
+
 ```bash
 PYTHONPATH=backend .venv/bin/python -m uvicorn app.extended_main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Successful Startup Indicators
-When launched successfully, Uvicorn outputs:
-```text
-INFO:     Will watch for changes in these directories: [...]
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [...]
-INFO:     Started server process [...]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-```
+### Verify the service is up
 
-- **Liveness probe:** `http://127.0.0.1:8000/api/v1/health` -> returns `{"status": "ok"}`
-- **Readiness probe:** `http://127.0.0.1:8000/api/v1/health/ready` -> returns `{"status": "ready", "database": "connected"}` when connected to PostgreSQL.
+| Probe | URL | Expected Response |
+|---|---|---|
+| Liveness | `GET /api/v1/health` | `{"status": "ok", "service": "artery-segmentation-auth"}` |
+| Readiness | `GET /api/v1/health/ready` | `{"status": "ready", "database": "connected", "environment": "development"}` |
+
+If the readiness probe returns HTTP 503, PostgreSQL is not reachable with the current `DATABASE_URL`.
 
 ---
 
-## 7. Swagger UI & API Exploration
+## 12. Swagger UI & API Exploration
 
-FastAPI automatically generates interactive OpenAPI documentation:
-
-- **Interactive Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **ReDoc Documentation:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-- **OpenAPI 3.1 JSON Schema:** [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)
+| Interface | URL |
+|---|---|
+| Interactive Swagger UI | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) |
+| ReDoc Documentation | [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) |
+| OpenAPI JSON Schema | [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json) |
 
 ### Authenticating in Swagger UI
-1. Open `http://127.0.0.1:8000/docs`.
-2. Expand `POST /api/v1/auth/login`, select **Try it out**, enter your registered email and password, and click **Execute**.
-3. Copy the returned `access_token` string.
-4. Scroll to the top of the Swagger UI page and click the green **Authorize** button (with the padlock icon).
-5. Paste the token into the **Value** box in the format:
-   ```text
-   Bearer YOUR_ACCESS_TOKEN_HERE
-   ```
-   *(or simply paste the raw token if the dialog prompts for HTTPBearer)*.
-6. Click **Authorize** and then **Close**. All protected endpoints will now send the Bearer header automatically.
+
+1. Open `/docs`.
+2. Expand `POST /api/v1/auth/login` → **Try it out** → enter credentials → **Execute**.
+3. Copy the `access_token` from the response.
+4. Click the **Authorize** 🔒 button at the top of the page.
+5. Enter `Bearer <your_access_token>` in the HTTPBearer field and click **Authorize**.
+6. All protected endpoints will now include the authorization header automatically.
 
 ---
 
-## 8. Complete API Endpoint Reference
+## 13. Complete API Endpoint Reference
 
-The complete application (`app.extended_main:app`) registers **20 endpoints**:
+The full application (`app.extended_main:app`) registers **48 operations across 40 URL paths**.
 
-### A. Health & Readiness Probes
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `GET` | `/api/v1/health` | Public | Liveness probe returning service operational status. |
-| `GET` | `/api/v1/health/ready` | Public | Readiness probe verifying PostgreSQL connectivity with `SELECT 1`. Returns HTTP 503 if disconnected. |
+### A. Health Probes
 
-### B. Authentication Endpoints (`/api/v1/auth`)
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Public | Registers a new user with default role `medical_researcher`. Hashes password using Argon2. Returns HTTP 409 on duplicate email. |
-| `POST` | `/api/v1/auth/login` | Public | Verifies email and password; returns JWT access token, token type, and refresh token. Returns HTTP 401 on bad credentials. |
-| `POST` | `/api/v1/auth/refresh` | Public (Token) | Validates refresh token, invalidates old token (rotation), and issues new access/refresh pair. |
-| `POST` | `/api/v1/auth/logout` | Public (Token) | Revokes the refresh token record in the database so it cannot be reused. |
-| `POST` | `/api/v1/auth/change-password` | Bearer JWT | Verifies current password, updates to new Argon2 hash, and revokes all active sessions for the user. |
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/health` | Public | Liveness probe — always returns `{"status": "ok"}` |
+| `GET` | `/api/v1/health/ready` | Public | Readiness probe — executes `SELECT 1` against PostgreSQL; returns HTTP 503 if unreachable |
 
-### C. User Profile Endpoints (`/api/v1/users`)
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `GET` | `/api/v1/users/me` | Bearer JWT | Returns the authenticated user's ID, name, email, role, and account creation timestamp. |
-| `PATCH` | `/api/v1/users/me` | Bearer JWT | Updates allowed profile fields (`name`, `email`). Blocks role escalation attempts. |
+### B. Authentication (`/api/v1/auth`)
 
-### D. SQL-Backed User Queries (`/api/v1/sql/users`)
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `GET` | `/api/v1/sql/users/email-exists` | Public | Executes `auth_queries.sql` Query 1. Takes `?email=...` query param and returns `{ "email": "...", "exists": true/false }`. |
-| `GET` | `/api/v1/sql/users/by-email` | Bearer JWT | Executes `auth_queries.sql` Query 2. Retrieves user record for verification. Strictly omits `password_hash` from response. |
-| `GET` | `/api/v1/sql/users` | Bearer JWT | Executes `auth_queries.sql` Query 3. Lists registered users (`user_id`, `full_name`, `email`, `created_at`) without password hashes. |
-| `PATCH` | `/api/v1/sql/users/{user_id}/name` | Bearer JWT | Executes `auth_queries.sql` Query 4. Updates a user's full name via parameterized SQL. |
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `POST` | `/api/v1/auth/register` | Public | Register a new user (default role: `medical_researcher`). Returns HTTP 409 on duplicate email. |
+| `POST` | `/api/v1/auth/login` | Public | Verify email + password; returns JWT access token + refresh token. HTTP 401 on bad credentials; HTTP 403 if account inactive. |
+| `POST` | `/api/v1/auth/refresh` | Public (token body) | Rotate refresh token: revoke submitted token, issue new access + refresh pair. Detects replay attacks. |
+| `POST` | `/api/v1/auth/logout` | Public (token body) | Revoke refresh token so it cannot be reused. |
+| `POST` | `/api/v1/auth/change-password` | Bearer JWT | Verify current password, update Argon2 hash, revoke all active sessions. |
 
-### E. SQL-Backed Clinical Examination & Results Queries (`/api/v1/sql`)
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `GET` | `/api/v1/sql/cases` | Bearer JWT | Executes `auth_queries.sql` Query 5. Returns all medical examination cases (`case_id`, `user_id`, `case_name`, `imaging_modality`, `target_vessel`, `status`, `created_at`). |
-| `GET` | `/api/v1/sql/images` | Bearer JWT | Executes `auth_queries.sql` Query 6. Returns all medical images (`image_id`, `case_id`, `image_name`, `image_path`, `image_format`, `image_size`, `uploaded_at`). |
-| `GET` | `/api/v1/sql/segmentation-results` | Bearer JWT | Executes `auth_queries.sql` Query 7. Returns segmentation outputs and evaluation metrics (`dice_score`, `iou_score`, `precision`, `recall`, `f1_score`, `mean_vessel_diameter`). |
-| `GET` | `/api/v1/sql/stenosis-results` | Bearer JWT | Executes `auth_queries.sql` Query 8. Returns stenosis detection records (`location`, `severity`, `confidence_score`, `estimated_diameter`, `created_at`). |
+### C. User Profile (`/api/v1/users`)
 
-### F. SQL-Backed Model Analytics Queries (`/api/v1/sql/analytics`)
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `GET` | `/api/v1/sql/analytics/segmentation-count` | Bearer JWT | Executes `result_queries.sql` Query 1. Returns `{ "count": <int> }` for total segmentation outputs. |
-| `GET` | `/api/v1/sql/analytics/stenosis-count` | Bearer JWT | Executes `result_queries.sql` Query 2. Returns `{ "count": <int> }` for total stenosis findings. |
-| `GET` | `/api/v1/sql/analytics/model-performance` | Bearer JWT | Executes `result_queries.sql` Query 3. Groups segmentation results by `model_name` and returns average Dice score in descending order. |
-| `GET` | `/api/v1/sql/analytics/summary` | Bearer JWT | Executes Queries 1, 2, and 3 into a consolidated analytics summary response. |
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/users/me` | Bearer JWT | Return authenticated user's `id`, `name`, `email`, `role`, `is_active`, timestamps. |
+| `PATCH` | `/api/v1/users/me` | Bearer JWT | Update `name` and/or `email`. Role field is not modifiable via this endpoint. |
+
+### D. SQL User Queries (`/api/v1/sql/users`)
+
+| Method | Path | Auth | SQL Source | Description |
+|---|---|:---:|---|---|
+| `GET` | `/api/v1/sql/users/email-exists` | Public | `auth_queries.sql` Q1 | Check email existence. Query param: `?email=`. Returns `{"email": "...", "exists": true}`. |
+| `GET` | `/api/v1/sql/users/by-email` | Bearer JWT | `auth_queries.sql` Q2 | Retrieve user record by email for verification. `password_hash` is excluded from response. |
+| `GET` | `/api/v1/sql/users` | Bearer JWT | `auth_queries.sql` Q3 | List all registered users (`user_id`, `full_name`, `email`, `created_at`). No password hashes. |
+| `PATCH` | `/api/v1/sql/users/{user_id}/name` | Bearer JWT | `auth_queries.sql` Q4 | Update a user's `full_name` by integer `user_id`. |
+
+### E. Case Management (`/api/v1/sql/cases`)
+
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/sql/cases` | Bearer JWT | List all examination cases ordered by `case_id DESC`. |
+| `POST` | `/api/v1/sql/cases` | Bearer JWT | Create a new case (`user_id`, `case_name`, `imaging_modality`, `target_vessel`, `status`). |
+| `GET` | `/api/v1/sql/cases/{case_id}` | Bearer JWT | Retrieve a specific case by `case_id`. HTTP 404 if not found. |
+| `GET` | `/api/v1/sql/cases/user/{user_id}` | Bearer JWT | Retrieve all cases for a given `user_id`. |
+| `PATCH` | `/api/v1/sql/cases/{case_id}` | Bearer JWT | Update case metadata (`case_name`, `imaging_modality`, `target_vessel`, `status`). |
+
+### F. Medical Image Management (`/api/v1/sql/images`, `/api/v1/sql/cases/{case_id}/images`)
+
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/sql/images` | Bearer JWT | List all medical images ordered by `image_id DESC`. |
+| `GET` | `/api/v1/sql/images/{image_id}` | Bearer JWT | Retrieve a specific image by `image_id`. HTTP 404 if not found. |
+| `GET` | `/api/v1/sql/cases/{case_id}/images` | Bearer JWT | Retrieve all images linked to a case. |
+| `POST` | `/api/v1/sql/cases/{case_id}/images` | Bearer JWT | Register new image metadata for a case (`image_name`, `image_path`, `image_format`, `image_size`). |
+| `PATCH` | `/api/v1/sql/images/{image_id}` | Bearer JWT | Update image metadata fields. |
+| `DELETE` | `/api/v1/sql/images/{image_id}` | Bearer JWT | Delete image metadata. Blocked if dependent segmentation or stenosis records exist. |
+
+### G. Segmentation Results (`/api/v1/sql/segmentation-results`, `/api/v1/sql/images/{image_id}/segmentation-results`)
+
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/sql/segmentation-results` | Bearer JWT | List all segmentation results ordered by `segmentation_id DESC`. |
+| `GET` | `/api/v1/sql/segmentation-results/latest` | Bearer JWT | Retrieve the most recent segmentation result by `created_at`. |
+| `GET` | `/api/v1/sql/images/{image_id}/segmentation-results` | Bearer JWT | Retrieve all segmentation results for a specific image. |
+| `GET` | `/api/v1/sql/cases/{case_id}/segmentation-results` | Bearer JWT | Retrieve all segmentation results linked to a case (via image JOIN). |
+| `POST` | `/api/v1/sql/images/{image_id}/segmentation-results` | Bearer JWT | Insert a segmentation result for an image (`mask_path`, `model_name`, `dice_score`, `iou_score`, `precision_score`, `recall_score`, `f1_score`, etc.). |
+
+### H. Stenosis Results (`/api/v1/sql/stenosis-results`, `/api/v1/sql/images/{image_id}/stenosis-results`)
+
+| Method | Path | Auth | Description |
+|---|---|:---:|---|
+| `GET` | `/api/v1/sql/stenosis-results` | Bearer JWT | List all stenosis results. Optional `?sort_by=confidence` to order by confidence score descending. |
+| `GET` | `/api/v1/sql/stenosis-results/latest` | Bearer JWT | Retrieve the most recent stenosis result. |
+| `GET` | `/api/v1/sql/stenosis-results/filter` | Bearer JWT | Filter stenosis results by severity. Query param: `?severity=severe`. |
+| `GET` | `/api/v1/sql/images/{image_id}/stenosis-results` | Bearer JWT | Retrieve all stenosis results for a specific image. |
+| `GET` | `/api/v1/sql/cases/{case_id}/stenosis-results` | Bearer JWT | Retrieve all stenosis results linked to a case (via image JOIN). |
+| `POST` | `/api/v1/sql/images/{image_id}/stenosis-results` | Bearer JWT | Insert a stenosis detection result (`location`, `severity`, `confidence_score`, `estimated_diameter`). |
+
+### I. Analytics (`/api/v1/sql/analytics`)
+
+| Method | Path | Auth | SQL Source | Description |
+|---|---|:---:|---|---|
+| `GET` | `/api/v1/sql/analytics/segmentation-count` | Bearer JWT | `result_queries.sql` Q1 | Returns `{"count": <int>}` total segmentation results. |
+| `GET` | `/api/v1/sql/analytics/stenosis-count` | Bearer JWT | `result_queries.sql` Q2 | Returns `{"count": <int>}` total stenosis results. |
+| `GET` | `/api/v1/sql/analytics/model-performance` | Bearer JWT | `result_queries.sql` Q3 | Average Dice score per model, ordered descending. |
+| `GET` | `/api/v1/sql/analytics/model-performance/detailed` | Bearer JWT | `result_queries.sql` Q4 | Full metrics per model: count, avg Dice, IoU, precision, recall, F1. |
+| `GET` | `/api/v1/sql/analytics/stenosis-severity-distribution` | Bearer JWT | `result_queries.sql` Q5 | Total cases and avg confidence grouped by severity. |
+| `GET` | `/api/v1/sql/analytics/summary` | Bearer JWT | `result_queries.sql` Q1–3 | Combined summary: total counts + model Dice performance. |
+| `GET` | `/api/v1/sql/dashboard/analytics` | Bearer JWT | All tables | Total counts for users, cases, images, segmentations, stenosis detections, and recent activity items. |
+
+### J. Clinical Reports (`/api/v1/sql/reports`)
+
+| Method | Path | Auth | SQL Source | Description |
+|---|---|:---:|---|---|
+| `GET` | `/api/v1/sql/reports/case-analysis` | Bearer JWT | `result_queries.sql` Q6 | Multi-table JOIN report: case → images → segmentation + stenosis results. Optional `?case_id=` filter. **Note:** images with multiple segmentation runs or stenosis findings produce one row per combination. |
+| `GET` | `/api/v1/sql/reports/case-summary-counts` | Bearer JWT | `result_queries.sql` Q7 | Per-case count of distinct images, segmentation results, and stenosis results. |
+
+### K. Database Diagnostics (`/api/v1/sql/diagnostics`) — Administrator Only
+
+> [!IMPORTANT]
+> These endpoints require the **`administrator`** role. Any other authenticated user receives HTTP 403 Forbidden.
+
+| Method | Path | Auth | SQL Source | Description |
+|---|---|:---:|---|---|
+| `GET` | `/api/v1/sql/diagnostics/foreign-keys` | Admin JWT | `result_queries.sql` Q8 | List all FK constraints in the `public` schema via `information_schema`. |
+| `GET` | `/api/v1/sql/diagnostics/tables` | Admin JWT | `result_queries.sql` Q9 | Verify that all 5 project tables exist in `information_schema.tables`. |
+| `GET` | `/api/v1/sql/diagnostics/columns` | Admin JWT | `result_queries.sql` Q10 | Inspect column names, data types, and nullability for project tables. Optional `?table_name=` filter. |
+| `GET` | `/api/v1/sql/diagnostics/foreign-key-consistency` | Admin JWT | `result_queries.sql` Q11 | Orphan record check: cases without valid users, images without valid cases, results without valid images. Returns 4 rows. |
 
 ---
 
-## 9. Detailed SQL Query Reference
+## 14. SQL Query-to-Endpoint Mapping
 
-| SQL File | Query Purpose | Tables Involved | Operation Type | Used by API Endpoint? |
-|---|---|---|---|---|
-| `auth_queries.sql` | 1. Check whether an email already exists | `users` | `SELECT EXISTS (...)` | Yes (`GET /api/v1/sql/users/email-exists`) |
-| `auth_queries.sql` | 2. Retrieve user for login verification | `users` | `SELECT` | Yes (`GET /api/v1/sql/users/by-email`) |
-| `auth_queries.sql` | 3. View registered users without password hashes | `users` | `SELECT` | Yes (`GET /api/v1/sql/users`) |
-| `auth_queries.sql` | 4. Update a user's full name | `users` | `UPDATE` | Yes (`PATCH /api/v1/sql/users/{user_id}/name`) |
-| `auth_queries.sql` | 5. View all clinical cases | `cases` | `SELECT` | Yes (`GET /api/v1/sql/cases`) |
-| `auth_queries.sql` | 6. View all medical images | `medical_images` | `SELECT` | Yes (`GET /api/v1/sql/images`) |
-| `auth_queries.sql` | 7. View segmentation results | `segmentation_results` | `SELECT` | Yes (`GET /api/v1/sql/segmentation-results`) |
-| `auth_queries.sql` | 8. View stenosis results | `stenosis_results` | `SELECT` | Yes (`GET /api/v1/sql/stenosis-results`) |
-| `result_queries.sql` | 1. Count segmentation results | `segmentation_results` | Aggregation (`COUNT`) | Yes (`GET /api/v1/sql/analytics/segmentation-count`) |
-| `result_queries.sql` | 2. Count stenosis results | `stenosis_results` | Aggregation (`COUNT`) | Yes (`GET /api/v1/sql/analytics/stenosis-count`) |
-| `result_queries.sql` | 3. Compare segmentation model performance | `segmentation_results` | Aggregation (`AVG`, `GROUP BY`, `ORDER BY`) | Yes (`GET /api/v1/sql/analytics/model-performance`) |
-| `database_work.sql` | Define core clinical relational tables | `users`, `cases`, `medical_images`, `segmentation_results`, `stenosis_results` | Schema DDL (`CREATE TABLE`, `ALTER TABLE`) | Schema Reference for clinical queries |
+### `database/auth_queries.sql`
 
-### Critical Distinction in SQL Usage:
-1. **SQL in `.sql` files:** Reference definitions and diagnostic queries stored on disk.
-2. **SQL executed by the application:** Real SQL executed with parameterized inputs (`:email`, `:user_id`, `:full_name`) via SQLAlchemy in [`backend/app/services/sql_clinical_service.py`](backend/app/services/sql_clinical_service.py).
-3. **ORM operations:** Authentication routes (`/auth/login`, `/auth/register`, `/users/me`) use SQLAlchemy 2.0 ORM sessions and models rather than raw string queries for transaction safety.
+| Query | Service Method | Endpoint |
+|---|---|---|
+| Q1 — Email existence check | `SQLClinicalService.check_email_exists` | `GET /api/v1/sql/users/email-exists` |
+| Q2 — User login verification lookup | `SQLClinicalService.get_user_by_email_for_verification` | `GET /api/v1/sql/users/by-email` |
+| Q3 — List registered users | `SQLClinicalService.get_registered_users` | `GET /api/v1/sql/users` |
+| Q4 — Update user full name | `SQLClinicalService.update_user_name` | `PATCH /api/v1/sql/users/{user_id}/name` |
+| Q5 — View all cases | `SQLClinicalService.get_all_cases` | `GET /api/v1/sql/cases` |
+| Q6 — View all medical images | `SQLClinicalService.get_all_medical_images` | `GET /api/v1/sql/images` |
+| Q7 — View all segmentation results | `SQLClinicalService.get_all_segmentation_results` | `GET /api/v1/sql/segmentation-results` |
+| Q8 — View all stenosis results | `SQLClinicalService.get_all_stenosis_results` | `GET /api/v1/sql/stenosis-results` |
 
----
+### `database/result_queries.sql`
 
-## 10. SQL Query-to-Endpoint Mapping
+| Query | Service Method | Endpoint |
+|---|---|---|
+| Q1 — Count segmentation results | `SQLClinicalService.get_segmentation_count` | `GET /api/v1/sql/analytics/segmentation-count` |
+| Q2 — Count stenosis results | `SQLClinicalService.get_stenosis_count` | `GET /api/v1/sql/analytics/stenosis-count` |
+| Q3 — Avg Dice per model | `SQLClinicalService.get_model_performance` | `GET /api/v1/sql/analytics/model-performance` |
+| Q4 — Full metrics per model | `SQLClinicalService.get_detailed_model_performance` | `GET /api/v1/sql/analytics/model-performance/detailed` |
+| Q5 — Severity distribution | `SQLClinicalService.get_stenosis_severity_distribution` | `GET /api/v1/sql/analytics/stenosis-severity-distribution` |
+| Q6 — Case-wise analysis report | `SQLClinicalService.get_case_analysis_report` | `GET /api/v1/sql/reports/case-analysis` |
+| Q7 — Case-wise summary counts | `SQLClinicalService.get_case_summary_counts` | `GET /api/v1/sql/reports/case-summary-counts` |
+| Q8 — FK relationship verification | `SQLClinicalService.diagnose_foreign_keys` | `GET /api/v1/sql/diagnostics/foreign-keys` |
+| Q9 — Project table verification | `SQLClinicalService.diagnose_tables` | `GET /api/v1/sql/diagnostics/tables` |
+| Q10 — Column & type inspection | `SQLClinicalService.diagnose_columns` | `GET /api/v1/sql/diagnostics/columns` |
+| Q11 — Orphan record check | `SQLClinicalService.diagnose_fk_consistency` | `GET /api/v1/sql/diagnostics/foreign-key-consistency` |
 
-| SQL File & Query | Service Function | Registered API Endpoint | Target Database Table |
-|---|---|---|---|
-| `auth_queries.sql` (Q1) | `SQLClinicalService.check_email_exists` | `GET /api/v1/sql/users/email-exists` | `users` |
-| `auth_queries.sql` (Q2) | `SQLClinicalService.get_user_by_email_for_verification` | `GET /api/v1/sql/users/by-email` | `users` |
-| `auth_queries.sql` (Q3) | `SQLClinicalService.get_registered_users` | `GET /api/v1/sql/users` | `users` |
-| `auth_queries.sql` (Q4) | `SQLClinicalService.update_user_name` | `PATCH /api/v1/sql/users/{user_id}/name` | `users` |
-| `auth_queries.sql` (Q5) | `SQLClinicalService.get_all_cases` | `GET /api/v1/sql/cases` | `cases` |
-| `auth_queries.sql` (Q6) | `SQLClinicalService.get_all_medical_images` | `GET /api/v1/sql/images` | `medical_images` |
-| `auth_queries.sql` (Q7) | `SQLClinicalService.get_all_segmentation_results` | `GET /api/v1/sql/segmentation-results` | `segmentation_results` |
-| `auth_queries.sql` (Q8) | `SQLClinicalService.get_all_stenosis_results` | `GET /api/v1/sql/stenosis-results` | `stenosis_results` |
-| `result_queries.sql` (Q1) | `SQLClinicalService.get_segmentation_count` | `GET /api/v1/sql/analytics/segmentation-count` | `segmentation_results` |
-| `result_queries.sql` (Q2) | `SQLClinicalService.get_stenosis_count` | `GET /api/v1/sql/analytics/stenosis-count` | `stenosis_results` |
-| `result_queries.sql` (Q3) | `SQLClinicalService.get_model_performance` | `GET /api/v1/sql/analytics/model-performance` | `segmentation_results` |
-| `result_queries.sql` (Q1-3) | `SQLClinicalService.*` (Aggregated) | `GET /api/v1/sql/analytics/summary` | `segmentation_results`, `stenosis_results` |
+> [!NOTE]
+> `database/database_work.sql` is a **schema reference only** — it is not executed by the application. The application queries the tables it defines, but schema creation is a manual step in pgAdmin or psql.
 
 ---
 
-## 11. Authentication & Authorization Flow
+## 15. Authentication & Authorization Flow
 
-### Concept Distinction:
-- **Authentication:** Who are you? (Verified via email and Argon2 hashed password verification; verified on each request via signed JWT bearer token).
-- **Authorization:** What are you allowed to do? (Verified via `RoleChecker` dependency enforcing permitted project roles: `radiologist`, `medical_researcher`, `data_scientist`, `administrator`).
+### Authentication Flow
 
-### Security Architecture:
-1. **Password Hashing:** Passwords are hashed with **Argon2** via `pwdlib`. Plaintext passwords are never stored, logged, or returned.
-2. **Access Tokens:** Signed JWT access tokens with subject `sub` (User UUID) and `role`. Tokens expire after 30 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`).
-3. **Refresh Tokens:** Long-lived 48-byte URL-safe tokens stored as SHA-256 digests in the `refresh_tokens` database table.
-4. **Token Rotation:** Every call to `/api/v1/auth/refresh` immediately revokes the submitted refresh token and generates a new pair. If a revoked token is reused, all active sessions for that user are revoked immediately (reuse attack detection).
-5. **Password Change:** Changing password immediately updates the Argon2 hash and invalidates all existing refresh tokens, forcing re-authentication.
+```
+POST /api/v1/auth/login
+  ├── Validate email + Argon2 password verification
+  ├── Issue signed JWT access token (sub=UUID, role, exp=+30min)
+  ├── Generate 48-byte random refresh token
+  ├── Store SHA-256(refresh_token) in refresh_tokens table
+  └── Return { access_token, refresh_token, token_type, expires_in }
+
+GET /api/v1/sql/cases  (or any protected route)
+  ├── Extract Bearer token from Authorization header
+  ├── Decode and verify JWT signature + expiration
+  ├── Resolve user by sub (UUID) from users table
+  └── Inject user object into route handler
+
+POST /api/v1/auth/refresh
+  ├── Hash submitted refresh token (SHA-256)
+  ├── Look up token_hash in database — reject if not found or revoked/expired
+  ├── Mark old token as revoked (revoked_at = now)
+  ├── Issue new JWT access token + new refresh token
+  └── Return new token pair
+```
+
+### Role-Based Access Control
+
+The `RoleChecker` dependency (`backend/app/api/dependencies.py`) enforces permitted roles per route:
+
+```python
+# Example: restrict to administrator role
+admin_user: User = Depends(RoleChecker([UserRole.ADMINISTRATOR]))
+```
+
+| Role | Value | Permitted Endpoints |
+|---|---|---|
+| `administrator` | `"administrator"` | All endpoints including `/api/v1/sql/diagnostics/*` |
+| `radiologist` | `"radiologist"` | All clinical endpoints except diagnostics |
+| `medical_researcher` | `"medical_researcher"` | All clinical endpoints except diagnostics (default registration role) |
+| `data_scientist` | `"data_scientist"` | All clinical endpoints except diagnostics |
+
+### Security Implementation Details
+
+| Feature | Implementation |
+|---|---|
+| Password hashing | Argon2 via `pwdlib[argon2]` |
+| Token signing | HS256 JWT via `pyjwt[crypto]`; claims: `sub`, `role`, `type`, `iat`, `exp` |
+| Refresh token storage | SHA-256 hex digest (64 chars) stored in `refresh_tokens.token_hash` |
+| Token rotation | Old token revoked on every refresh call |
+| Replay detection | Revoked token reuse triggers immediate revocation of all user sessions |
 
 ---
 
-## 12. Testing Guide
+## 16. Testing Guide
 
 ### Test Architecture
-Tests use **pytest** and **FastAPI TestClient**. To ensure complete developer safety and avoid modifying or corrupting real database records:
-- The test harness ([`tests/conftest.py`](tests/conftest.py)) provisions an **isolated in-memory SQLite database** with table schemas matching `database_work.sql`.
-- Dependency override (`app.dependency_overrides[get_db]`) intercepts database sessions for tests without touching PostgreSQL.
 
-### Running Automated Tests
-Run the entire test suite from Windows PowerShell:
+The test suite uses **pytest** and **FastAPI TestClient** with an **isolated in-memory SQLite database**. No PostgreSQL connection is required to run tests.
+
+- [`tests/conftest.py`](tests/conftest.py) creates the SQLite database, creates all ORM tables, and manually creates the clinical schema tables (`cases`, `medical_images`, `segmentation_results`, `stenosis_results`).
+- The `get_db` dependency is overridden per test function to use the isolated SQLite session.
+- Each test function receives a fresh transaction that is rolled back after the test completes.
+
+> [!IMPORTANT]
+> **SQLite test success ≠ PostgreSQL integration verified.**
+> Tests confirm route logic, serialization, authentication enforcement, and RBAC. They do **not** confirm that the queries work correctly against a live PostgreSQL instance. Live PostgreSQL verification requires a configured `DATABASE_URL` with valid credentials.
+
+### Running Tests
+
 ```powershell
+# Run all 45 tests with verbose output
 .\.venv\Scripts\python.exe -m pytest -v
 ```
 
-### Verified Test Results (35 Passed, 0 Failed):
-- **`tests/test_auth.py` (14 tests):**
-  - Registration success, duplicate rejection (409), password length validation (422), role override protection.
-  - Login success, invalid password rejection (401), non-existent email rejection (401).
-  - Password hashing verification (hash differs from plaintext).
-  - Refresh token rotation, token reuse detection, logout revocation.
-  - Password change success, session revocation, invalid password rejection.
-  - Inactive user login blocking (403).
-- **`tests/test_users.py` (8 tests):**
-  - Authenticated profile retrieval (`/users/me`), missing token rejection (401), expired token rejection (401), malformed token rejection (401).
-  - Inactive account access blocking (403).
-  - Name and email updates (`PATCH /users/me`).
-  - Role escalation prevention (unauthorized role update attempts are ignored).
-- **`tests/test_clinical_endpoints.py` (13 tests):**
-  - SQL email existence query (Q1), user verification lookup (Q2), registered users listing (Q3), name update (Q4).
-  - SQL cases listing (Q5), medical images listing (Q6), segmentation results (Q7), stenosis results (Q8).
-  - Segmentation count (RQ1), stenosis count (RQ2), model performance comparison (RQ3), combined summary.
-  - Bearer token authentication enforcement on all clinical endpoints.
+### Test Results (45 passed, 0 failed — verified)
+
+| Test File | Tests | Coverage |
+|---|:---:|---|
+| `tests/test_auth.py` | 14 | Register (success, duplicate, invalid input), login (success, bad password, unknown email), password hashing, refresh rotation, logout revocation, password change, inactive account blocking |
+| `tests/test_clinical_endpoints.py` | 23 | All 8 `auth_queries.sql` endpoints, case/image/segmentation/stenosis CRUD, dashboard analytics, all 11 `result_queries.sql` endpoints (Q1–Q11), unauthenticated 401 enforcement, non-admin 403 on diagnostic routes |
+| `tests/test_users.py` | 8 | Authenticated profile retrieval, missing/expired/malformed token rejection, inactive account blocking, name update, email update, role escalation prevention |
 
 ---
 
-## 13. Example API Usage (PowerShell & cURL)
+## 17. Example API Usage
 
-### 1. Check Service Health
+### 1. Health check
+
 ```powershell
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/v1/health"
 ```
+
 ```bash
-curl -X GET http://127.0.0.1:8000/api/v1/health
-```
-*Expected Response:*
-```json
-{
-  "status": "ok",
-  "service": "artery-segmentation-auth"
-}
+curl http://127.0.0.1:8000/api/v1/health
 ```
 
-### 2. Register a New Clinician / Researcher
+```json
+{"status": "ok", "service": "artery-segmentation-auth"}
+```
+
+### 2. Register a new user
+
 ```powershell
 $body = @{
-    name = "Dr. Jane Doe"
-    email = "jane.doe@cardiology.hospital.org"
-    password = "SecurePassword2026!"
+    name     = "Dr. Jane Smith"
+    email    = "jane.smith@hospital.example.com"
+    password = "StrongPassword2026!"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/auth/register" `
+Invoke-RestMethod -Method Post `
+    -Uri "http://127.0.0.1:8000/api/v1/auth/register" `
     -ContentType "application/json" -Body $body
 ```
-*Expected Response (HTTP 201):*
+
+**Response (HTTP 201):**
 ```json
 {
-  "id": "7f000001-8b20-13f5-818b-201a4e5c0001",
-  "name": "Dr. Jane Doe",
-  "email": "jane.doe@cardiology.hospital.org",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Dr. Jane Smith",
+  "email": "jane.smith@hospital.example.com",
   "role": "medical_researcher",
   "is_active": true,
-  "created_at": "2026-11-02T10:00:00Z",
-  "updated_at": "2026-11-02T10:00:00Z"
+  "created_at": "2026-11-05T10:00:00Z",
+  "updated_at": "2026-11-05T10:00:00Z"
 }
 ```
 
-### 3. Log In to Receive Access & Refresh Tokens
+### 3. Log in and store the access token
+
 ```powershell
 $loginBody = @{
-    email = "jane.doe@cardiology.hospital.org"
-    password = "SecurePassword2026!"
+    email    = "jane.smith@hospital.example.com"
+    password = "StrongPassword2026!"
 } | ConvertTo-Json
 
-$loginResponse = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/auth/login" `
+$resp  = Invoke-RestMethod -Method Post `
+    -Uri "http://127.0.0.1:8000/api/v1/auth/login" `
     -ContentType "application/json" -Body $loginBody
 
-$token = $loginResponse.access_token
-Write-Host "Received JWT Access Token: $token"
+$token = $resp.access_token
+$headers = @{ Authorization = "Bearer $token" }
 ```
 
-### 4. Query Current Authenticated Profile
+**Response (HTTP 200):**
+```json
+{
+  "access_token": "<JWT>",
+  "token_type": "bearer",
+  "refresh_token": "<opaque_token>",
+  "expires_in": 1800
+}
+```
+
+### 4. Query your profile
+
 ```powershell
-$headers = @{ Authorization = "Bearer $token" }
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/v1/users/me" -Headers $headers
 ```
 
-### 5. Query Clinical Cases via SQL Endpoint
+### 5. Create a clinical case
+
 ```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/v1/sql/cases" -Headers $headers
+$caseBody = @{
+    user_id          = 1
+    case_name        = "Patient A — LAD CTA Study"
+    imaging_modality = "CTA"
+    target_vessel    = "LAD"
+    status           = "pending"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post `
+    -Uri "http://127.0.0.1:8000/api/v1/sql/cases" `
+    -ContentType "application/json" -Headers $headers -Body $caseBody
 ```
 
-### 6. Query Model Benchmarking Analytics
+### 6. Query model performance analytics
+
 ```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/v1/sql/analytics/model-performance" -Headers $headers
+Invoke-RestMethod -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/sql/analytics/model-performance/detailed" `
+    -Headers $headers
 ```
-*Example Response:*
+
+**Response:**
 ```json
 [
   {
-    "model_name": "3D-ResUNet-Artery",
-    "average_dice_score": 0.9124
-  },
-  {
-    "model_name": "3D-UNet",
-    "average_dice_score": 0.8850
+    "model_name": "UNet3D",
+    "total_results": 42,
+    "average_dice": 0.9124,
+    "average_iou": 0.8831,
+    "average_precision": 0.9201,
+    "average_recall": 0.9044,
+    "average_f1": 0.9122
   }
+]
+```
+
+### 7. Query stenosis severity distribution
+
+```powershell
+Invoke-RestMethod -Method Get `
+    -Uri "http://127.0.0.1:8000/api/v1/sql/analytics/stenosis-severity-distribution" `
+    -Headers $headers
+```
+
+**Response:**
+```json
+[
+  {"severity": "severe",   "total_cases": 18, "average_confidence": 0.9312},
+  {"severity": "moderate", "total_cases": 11, "average_confidence": 0.8745},
+  {"severity": "mild",     "total_cases":  7, "average_confidence": 0.7891}
 ]
 ```
 
 ---
 
-## 14. Troubleshooting Guide
+## 18. Troubleshooting Guide
 
-| Issue | Root Cause | Solution |
+| Symptom | Likely Cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError: No module named 'app'` | `PYTHONPATH` not pointing to `backend/` directory | In PowerShell, run `$env:PYTHONPATH="backend"` before running Uvicorn. |
-| `Cannot connect to PostgreSQL on localhost:5432` | PostgreSQL Windows service is stopped or port is 5433 | Run `Get-Service *postgres*` to confirm service is running. If using PostgreSQL 18, update port to `5433` in `.env`. |
-| `HTTP 503: Database query error` on `/sql/*` routes | Target table does not exist in the active PostgreSQL database | Run the DDL statements from `database_work.sql` in pgAdmin against `artery_db` to create `cases`, `medical_images`, and result tables. |
-| `HTTP 401: Token has expired` | JWT access token lifetime (30m) elapsed | Submit refresh token to `POST /api/v1/auth/refresh` to rotate and obtain a fresh access token. |
-| `HTTP 403: Operation not permitted: insufficient privileges` | User role does not meet `RoleChecker` requirement | Contact administrator to adjust role in the database. |
-| `WinError 10048: Only one usage of each socket address is permitted` | Port 8000 is occupied by an existing Uvicorn instance | Run `Get-NetTCPConnection -LocalPort 8000` to find the process ID, terminate it with `Stop-Process -Id <PID>`, or start on port 8001. |
+| `ModuleNotFoundError: No module named 'app'` | `PYTHONPATH` not set | Run `$env:PYTHONPATH = "backend"` before Uvicorn |
+| `HTTP 503` on `/api/v1/health/ready` | PostgreSQL not reachable | Check `Get-Service *postgres*`; verify port and credentials in `.env` |
+| `HTTP 503` on any `/api/v1/sql/*` route | Clinical table doesn't exist in DB | Execute `database/database_work.sql` DDL in pgAdmin against `artery_db` |
+| `HTTP 401 Token has expired` | 30-minute access token TTL elapsed | POST to `/api/v1/auth/refresh` with the refresh token |
+| `HTTP 403 Operation not permitted` | User role insufficient | Use an `administrator` account for diagnostic endpoints |
+| `HTTP 409 Conflict` on register | Email already registered | Use a different email or log in with existing credentials |
+| `SyntaxError in database_work.sql` at line 54 | Premature semicolon on line 53 | Change `;` on line 53 to `,` before running the script |
+| Port 8000 already in use | Another Uvicorn process running | `Get-NetTCPConnection -LocalPort 8000`, then `Stop-Process -Id <PID>`, or use `--port 8001` |
+| PowerShell `ExecutionPolicy` error on `.ps1` | Execution policy blocked | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
 
 ---
 
-## 15. Known Issues & Limitations
+## 19. Known Issues & Limitations
 
-1. **Syntax Blocker in `database_work.sql` (Line 53):**
-   In [`database_work.sql`](database_work.sql#L53), line 53 ends with a premature semicolon `;`:
-   ```sql
-   ADD COLUMN IF NOT EXISTS model_version VARCHAR(50); -- Premature semicolon terminates statement!
-   ADD COLUMN IF NOT EXISTS precision_score NUMERIC(6,5),
-   ```
-   *Impact:* Executing this script directly in pgAdmin or psql will raise a syntax error at line 54. Per strict non-destructive repository rules, the file has been preserved unchanged. When applying migrations to PostgreSQL, change that semicolon to a comma `,`.
-2. **User Identifier Type Divergence:**
-   The authentication system uses UUID primary keys (`users.id UUID`), whereas [`database_work.sql`](database_work.sql) specifies integer serial keys (`users.user_id SERIAL`, `cases.user_id INTEGER`). The clinical response schemas bridge this using `Union[int, str]`, but unifying user IDs across the database layer remains a planned integration task when merging teammate branches.
-3. **ML Inference Pipeline Not Connected:**
-   This API currently serves the database queries and metrics reporting for segmentation and stenosis results. Actual deep learning inference (e.g. running 3D-UNet or PyTorch weights on DICOM files) is part of a separate pipeline and is not yet invoked by this API service.
+### 1. Syntax error in `database/database_work.sql` (line 53)
+
+The `ALTER TABLE segmentation_results` statement is split incorrectly — a semicolon on line 53 prematurely terminates the statement before all `ADD COLUMN` clauses are parsed:
+
+```sql
+-- Line 53 ends with a semicolon instead of a comma:
+ADD COLUMN IF NOT EXISTS model_version VARCHAR(50);   -- ← should be a comma
+ADD COLUMN IF NOT EXISTS precision_score NUMERIC(6,5),
+```
+
+**Impact:** Running the file as a script in psql or pgAdmin raises a syntax error at line 54. Manually change `;` to `,` on line 53 before executing.
+
+### 2. User table primary key divergence
+
+The ORM `users` table (used by authentication routes) has:
+- Primary key column: `id UUID`
+- Name column: `name VARCHAR(255)`
+
+The `database/database_work.sql` clinical schema defines:
+- Primary key column: `user_id SERIAL INTEGER`
+- Name column: `full_name VARCHAR(100)`
+
+As a result:
+- `PATCH /api/v1/sql/users/{user_id}/name` targets `user_id` (integer), which does not exist in the ORM-generated `users` table. This endpoint works correctly only when the clinical schema version of `users` is present.
+- `GET /api/v1/sql/users/by-email` returns `user_id` and `full_name`, which are not present in the ORM `users` table.
+
+Unifying these two schemas is a planned task when merging with teammate branches.
+
+### 3. `information_schema` queries not available in SQLite
+
+Diagnostic endpoints (Queries 8–10 from `result_queries.sql`) query PostgreSQL's `information_schema`. SQLite does not implement these views. In the test suite, these endpoints return HTTP 503 with a database error rather than data, and the test asserts `status_code in [200, 503]`. This is expected behavior — these endpoints require a live PostgreSQL connection to return meaningful results.
+
+### 4. ML inference pipeline not connected
+
+The API stores and queries segmentation and stenosis metrics, but does not invoke any deep learning inference. Running a 3D-UNet model, ingesting DICOM files, or generating segmentation masks are out of scope for this service and are managed by a separate pipeline.
+
+---
+
+## 20. Completed vs. Planned Features
+
+### ✅ Completed
+
+- Full authentication lifecycle: register, login, refresh, logout, change password
+- Role-based access control with 4 roles
+- Complete clinical CRUD: cases, medical images, segmentation results, stenosis results
+- All 11 `result_queries.sql` queries implemented as SQL-backed API endpoints
+- All 8 `auth_queries.sql` queries implemented as API endpoints
+- Dashboard and report aggregation endpoints
+- Administrator-only database diagnostic endpoints
+- 45-test automated suite (100% pass rate on SQLite fixture)
+- Interactive Swagger UI with persistent JWT authorization
+
+### ⏳ Planned / Incomplete
+
+- Alembic migration scripts (framework configured, no revisions authored)
+- Unification of ORM `users` schema with clinical `users` schema
+- Deep learning inference integration (DICOM ingestion, model execution, mask output)
+- Recent activity log table for dashboard (currently returns empty list from two most-recent SELECT queries)
+- PostgreSQL live integration verification (blocked by local credential configuration)
+
+---
+
+*Backend service for the Infosys Springboard Internship — Artery Segmentation and Stenosis Detection project.*
