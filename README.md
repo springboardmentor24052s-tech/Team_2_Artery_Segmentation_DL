@@ -322,6 +322,9 @@ Copy-Item .env.example .env
 | `ENVIRONMENT` | No | `development` | Runtime label (`development`, `testing`, `production`) |
 | `ALLOWED_ORIGINS` | No | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins for frontend apps |
 
+> [!TIP]
+> Verified defaults loaded from `.env` and confirmed by the running application: `JWT_ALGORITHM=HS256`, `ACCESS_TOKEN_EXPIRE_MINUTES=30`, `REFRESH_TOKEN_EXPIRE_DAYS=7`, `ENVIRONMENT=development`, `ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`.
+
 **Generate a secure `JWT_SECRET_KEY`:**
 ```powershell
 .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -389,6 +392,9 @@ PYTHONPATH=backend .venv/bin/python -m uvicorn app.extended_main:app --host 127.
 | Readiness | `GET /api/v1/health/ready` | `{"status": "ready", "database": "connected", "environment": "development"}` |
 
 If the readiness probe returns HTTP 503, PostgreSQL is not reachable with the current `DATABASE_URL`.
+
+> [!NOTE]
+> **Verified:** PostgreSQL 17.10 on `localhost:5432` is confirmed reachable using the application's configured `DATABASE_URL`. The `/api/v1/health/ready` probe returns `{"status": "ready", "database": "connected", "environment": "development"}`. ORM tables (`users`, `refresh_tokens`) are confirmed present in the `public` schema. Clinical tables (`cases`, `medical_images`, `segmentation_results`, `stenosis_results`) require manual DDL execution from `database/database_work.sql` before SQL-backed endpoints return data.
 
 ---
 
@@ -624,8 +630,11 @@ The test suite uses **pytest** and **FastAPI TestClient** with an **isolated in-
 - Each test function receives a fresh transaction that is rolled back after the test completes.
 
 > [!IMPORTANT]
-> **SQLite test success ≠ PostgreSQL integration verified.**
-> Tests confirm route logic, serialization, authentication enforcement, and RBAC. They do **not** confirm that the queries work correctly against a live PostgreSQL instance. Live PostgreSQL verification requires a configured `DATABASE_URL` with valid credentials.
+> **SQLite test success ≠ live PostgreSQL integration.**
+> Tests confirm route logic, serialization, authentication enforcement, and RBAC. They run entirely against an in-memory SQLite database — PostgreSQL is not contacted during the test run.
+>
+> **Live PostgreSQL status (verified):** PostgreSQL 17.10 on `localhost:5432` is reachable. The ORM tables (`users`, `refresh_tokens`) exist in the `public` schema and are confirmed by `Base.metadata.create_all`. Clinical tables (`cases`, `medical_images`, `segmentation_results`, `stenosis_results`) must be initialized from `database/database_work.sql` before the SQL-backed endpoints return data rather than HTTP 503.
+> The diagnostic endpoints (`/api/v1/sql/diagnostics/*`) require a live PostgreSQL connection because they query `information_schema`, which is not available in SQLite — these cannot be tested via the SQLite fixture.
 
 ### Running Tests
 
@@ -674,16 +683,16 @@ Invoke-RestMethod -Method Post `
     -ContentType "application/json" -Body $body
 ```
 
-**Response (HTTP 201):**
+*Expected Response (HTTP 201):*
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "id": "<UUID assigned by the database>",
   "name": "Dr. Jane Smith",
   "email": "jane.smith@hospital.example.com",
   "role": "medical_researcher",
   "is_active": true,
-  "created_at": "2026-11-05T10:00:00Z",
-  "updated_at": "2026-11-05T10:00:00Z"
+  "created_at": "<ISO 8601 timestamp>",
+  "updated_at": "<ISO 8601 timestamp>"
 }
 ```
 
@@ -706,9 +715,9 @@ $headers = @{ Authorization = "Bearer $token" }
 **Response (HTTP 200):**
 ```json
 {
-  "access_token": "<JWT>",
+  "access_token": "<signed JWT string>",
   "token_type": "bearer",
-  "refresh_token": "<opaque_token>",
+  "refresh_token": "<opaque 64-character URL-safe token>",
   "expires_in": 1800
 }
 ```
@@ -743,17 +752,17 @@ Invoke-RestMethod -Method Get `
     -Headers $headers
 ```
 
-**Response:**
+**Example response shape** *(actual values depend on data in your database — these are illustrative field names and types only)*:
 ```json
 [
   {
-    "model_name": "UNet3D",
-    "total_results": 42,
-    "average_dice": 0.9124,
-    "average_iou": 0.8831,
-    "average_precision": 0.9201,
-    "average_recall": 0.9044,
-    "average_f1": 0.9122
+    "model_name": "<string: model identifier>",
+    "total_results": "<int: evaluation record count>",
+    "average_dice": "<float | null: 0.0 – 1.0>",
+    "average_iou": "<float | null: 0.0 – 1.0>",
+    "average_precision": "<float | null: 0.0 – 1.0>",
+    "average_recall": "<float | null: 0.0 – 1.0>",
+    "average_f1": "<float | null: 0.0 – 1.0>"
   }
 ]
 ```
@@ -766,12 +775,14 @@ Invoke-RestMethod -Method Get `
     -Headers $headers
 ```
 
-**Response:**
+**Example response shape** *(actual values depend on data in your database — these are illustrative field names and types only)*:
 ```json
 [
-  {"severity": "severe",   "total_cases": 18, "average_confidence": 0.9312},
-  {"severity": "moderate", "total_cases": 11, "average_confidence": 0.8745},
-  {"severity": "mild",     "total_cases":  7, "average_confidence": 0.7891}
+  {
+    "severity": "<string | null: e.g. 'severe', 'moderate', 'mild'>",
+    "total_cases": "<int: count of stenosis records for this severity>",
+    "average_confidence": "<float | null: 0.0 – 1.0>"
+  }
 ]
 ```
 
