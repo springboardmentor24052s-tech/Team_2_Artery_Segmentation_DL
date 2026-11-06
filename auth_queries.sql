@@ -162,9 +162,3 @@ RETURNING *;
 SELECT *
 FROM medical_images
 WHERE image_id = 2;
-
-
--- 8. View stenosis results
-SELECT *
-FROM stenosis_results
-ORDER BY stenosis_id;
