@@ -748,10 +748,9 @@ def get_case_analysis_report(
 ):
     """
     Executes Query 6 from result_queries.sql.
-    Performs multi-table join across cases, medical images, segmentation results,
-    and stenosis results.
-    Note on behavior: Because an image may have multiple segmentation runs or detected
-    stenosis lesions, the join produces one row per image-segmentation-stenosis combination.
+    Performs CTE-based multi-table aggregation across cases, medical images,
+    segmentation summaries, and stenosis summaries.
+    Avoids duplicate combinations of multiple segmentation and stenosis results per image.
     """
     try:
         return SQLClinicalService.get_case_analysis_report(db, case_id=case_id)

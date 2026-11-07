@@ -131,12 +131,11 @@ class AnalyticsSummaryResponse(BaseModel):
     source: str = "sql_database"
 
 class RecentActivityItem(BaseModel):
-    activity_type: str  # "segmentation" or "stenosis"
-    record_id: int
     image_id: int
+    image_name: Optional[str] = None
+    analysis_type: str  # "Segmentation" or "Stenosis"
     model_or_severity: Optional[str] = None
-    metric_or_confidence: Optional[float] = None
-    created_at: Optional[datetime] = None
+    analysis_date: Optional[datetime] = None
 
 class DashboardAnalyticsResponse(BaseModel):
     total_users: int
@@ -169,12 +168,14 @@ class CaseAnalysisReportItem(BaseModel):
     target_vessel: Optional[str] = None
     image_id: int
     image_name: Optional[str] = None
-    model_name: Optional[str] = None
-    dice_score: Optional[float] = None
-    iou_score: Optional[float] = None
-    severity: Optional[str] = None
-    confidence_score: Optional[float] = None
-    estimated_diameter: Optional[float] = None
+    total_segmentation_results: int = 0
+    model_names: Optional[str] = None
+    average_dice: Optional[float] = None
+    average_iou: Optional[float] = None
+    total_stenosis_results: int = 0
+    detected_severities: Optional[str] = None
+    average_confidence: Optional[float] = None
+    average_estimated_diameter: Optional[float] = None
 
 class CaseSummaryCountItem(BaseModel):
     case_id: int

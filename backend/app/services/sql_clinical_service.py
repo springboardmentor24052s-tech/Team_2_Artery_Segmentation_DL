@@ -629,60 +629,58 @@ class SQLClinicalService:
     def get_dashboard_analytics(db: Session) -> Dict[str, Any]:
         """
         Returns unified dashboard counts: total users, cases, images, stenosis detections,
-        and recent analysis activity log.
+        and recent analysis activity log corresponding to result_queries.sql Q24-Q28.
         """
-        users_count = db.execute(text("SELECT COUNT(*) FROM users;")).scalar() or 0
-        cases_count = db.execute(text("SELECT COUNT(*) FROM cases;")).scalar() or 0
-        images_count = db.execute(text("SELECT COUNT(*) FROM medical_images;")).scalar() or 0
-        stenosis_count = db.execute(text("SELECT COUNT(*) FROM stenosis_results;")).scalar() or 0
+        users_count = db.execute(text("SELECT COUNT(*) AS total_registered_users FROM users;")).scalar() or 0
+        cases_count = db.execute(text("SELECT COUNT(*) AS total_medical_cases FROM cases;")).scalar() or 0
+        images_count = db.execute(text("SELECT COUNT(*) AS total_uploaded_images FROM medical_images;")).scalar() or 0
+        stenosis_count = db.execute(text("SELECT COUNT(*) AS total_stenosis_detections FROM stenosis_results;")).scalar() or 0
 
-        # Query recent activity (last 5 segmentation and stenosis records)
-        recent_seg_sql = text("""
-            SELECT 'segmentation' AS activity_type, segmentation_id AS record_id, image_id,
-                   model_name AS model_or_severity, dice_score AS metric_or_confidence, created_at
-            FROM segmentation_results
-            ORDER BY created_at DESC, segmentation_id DESC
-            LIMIT 5;
-        """)
-        recent_sten_sql = text("""
-            SELECT 'stenosis' AS activity_type, stenosis_id AS record_id, image_id,
-                   severity AS model_or_severity, confidence_score AS metric_or_confidence, created_at
-            FROM stenosis_results
-            ORDER BY created_at DESC, stenosis_id DESC
-            LIMIT 5;
+        # Query recent activity (Query 28 from result_queries.sql)
+        recent_activity_sql = text("""
+            SELECT
+                m.image_id,
+                m.image_name,
+                'Segmentation' AS analysis_type,
+                s.model_name AS model_or_severity,
+                s.created_at AS analysis_date
+            FROM segmentation_results s
+            JOIN medical_images m
+                ON s.image_id = m.image_id
+
+            UNION ALL
+
+            SELECT
+                m.image_id,
+                m.image_name,
+                'Stenosis' AS analysis_type,
+                st.severity AS model_or_severity,
+                st.created_at AS analysis_date
+            FROM stenosis_results st
+            JOIN medical_images m
+                ON st.image_id = m.image_id
+
+            ORDER BY analysis_date DESC
+            LIMIT 10;
         """)
 
         recent_activity: List[Dict[str, Any]] = []
-        for row in db.execute(recent_seg_sql).fetchall():
+        for row in db.execute(recent_activity_sql).fetchall():
             m = row._mapping
             recent_activity.append({
-                "activity_type": m["activity_type"],
-                "record_id": m["record_id"],
                 "image_id": m["image_id"],
+                "image_name": m["image_name"],
+                "analysis_type": m["analysis_type"],
                 "model_or_severity": m["model_or_severity"],
-                "metric_or_confidence": float(m["metric_or_confidence"]) if m["metric_or_confidence"] is not None else None,
-                "created_at": m["created_at"]
+                "analysis_date": m["analysis_date"]
             })
-        for row in db.execute(recent_sten_sql).fetchall():
-            m = row._mapping
-            recent_activity.append({
-                "activity_type": m["activity_type"],
-                "record_id": m["record_id"],
-                "image_id": m["image_id"],
-                "model_or_severity": m["model_or_severity"],
-                "metric_or_confidence": float(m["metric_or_confidence"]) if m["metric_or_confidence"] is not None else None,
-                "created_at": m["created_at"]
-            })
-
-        # Sort combined recent activity descending by created_at
-        recent_activity.sort(key=lambda x: str(x["created_at"]), reverse=True)
 
         return {
             "total_users": int(users_count),
             "total_cases": int(cases_count),
             "total_images": int(images_count),
             "total_stenosis_detections": int(stenosis_count),
-            "recent_activity": recent_activity[:10],
+            "recent_activity": recent_activity,
             "source": "sql_database"
         }
 
@@ -753,11 +751,34 @@ class SQLClinicalService:
         """
         Executes Query 6 from result_queries.sql:
         Case-wise medical image and complete analysis report joining cases, images,
-        segmentations, and stenosis results.
-        Note: When an image has multiple segmentation runs or detected stenosis lesions,
-        the JOIN produces one row per combination of image, segmentation, and stenosis record.
+        and CTE-aggregated segmentation and stenosis summaries.
+        Avoids duplicate combinations of multiple segmentation and stenosis results per image.
         """
-        query_str = """
+        is_sqlite = db.bind is not None and db.bind.dialect.name == "sqlite"
+        agg_fn = "GROUP_CONCAT" if is_sqlite else "STRING_AGG"
+        agg_delim = "" if is_sqlite else ", ', '"
+
+        query_str = f"""
+            WITH segmentation_summary AS (
+                SELECT
+                    image_id,
+                    COUNT(*) AS total_segmentation_results,
+                    {agg_fn}(DISTINCT model_name{agg_delim}) AS model_names,
+                    ROUND(AVG(dice_score), 4) AS average_dice,
+                    ROUND(AVG(iou_score), 4) AS average_iou
+                FROM segmentation_results
+                GROUP BY image_id
+            ),
+            stenosis_summary AS (
+                SELECT
+                    image_id,
+                    COUNT(*) AS total_stenosis_results,
+                    {agg_fn}(DISTINCT severity{agg_delim}) AS detected_severities,
+                    ROUND(AVG(confidence_score), 4) AS average_confidence,
+                    ROUND(AVG(estimated_diameter), 4) AS average_estimated_diameter
+                FROM stenosis_results
+                GROUP BY image_id
+            )
             SELECT
                 c.case_id,
                 c.case_name,
@@ -765,18 +786,20 @@ class SQLClinicalService:
                 c.target_vessel,
                 m.image_id,
                 m.image_name,
-                s.model_name,
-                s.dice_score,
-                s.iou_score,
-                st.severity,
-                st.confidence_score,
-                st.estimated_diameter
+                COALESCE(s.total_segmentation_results, 0) AS total_segmentation_results,
+                s.model_names,
+                s.average_dice,
+                s.average_iou,
+                COALESCE(st.total_stenosis_results, 0) AS total_stenosis_results,
+                st.detected_severities,
+                st.average_confidence,
+                st.average_estimated_diameter
             FROM cases c
             JOIN medical_images m
                 ON c.case_id = m.case_id
-            LEFT JOIN segmentation_results s
+            LEFT JOIN segmentation_summary s
                 ON m.image_id = s.image_id
-            LEFT JOIN stenosis_results st
+            LEFT JOIN stenosis_summary st
                 ON m.image_id = st.image_id
         """
         params: Dict[str, Any] = {}
@@ -796,12 +819,14 @@ class SQLClinicalService:
                 "target_vessel": m["target_vessel"],
                 "image_id": m["image_id"],
                 "image_name": m["image_name"],
-                "model_name": m["model_name"],
-                "dice_score": float(m["dice_score"]) if m["dice_score"] is not None else None,
-                "iou_score": float(m["iou_score"]) if m["iou_score"] is not None else None,
-                "severity": m["severity"],
-                "confidence_score": float(m["confidence_score"]) if m["confidence_score"] is not None else None,
-                "estimated_diameter": float(m["estimated_diameter"]) if m["estimated_diameter"] is not None else None,
+                "total_segmentation_results": int(m["total_segmentation_results"]),
+                "model_names": m["model_names"],
+                "average_dice": float(m["average_dice"]) if m["average_dice"] is not None else None,
+                "average_iou": float(m["average_iou"]) if m["average_iou"] is not None else None,
+                "total_stenosis_results": int(m["total_stenosis_results"]),
+                "detected_severities": m["detected_severities"],
+                "average_confidence": float(m["average_confidence"]) if m["average_confidence"] is not None else None,
+                "average_estimated_diameter": float(m["average_estimated_diameter"]) if m["average_estimated_diameter"] is not None else None,
             })
         return results
 

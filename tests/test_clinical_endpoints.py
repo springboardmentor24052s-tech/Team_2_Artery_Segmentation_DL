@@ -388,6 +388,10 @@ def test_dashboard_analytics(client, auth_headers):
     assert "total_stenosis_detections" in data
     assert "recent_activity" in data
     assert isinstance(data["recent_activity"], list)
+    if data["recent_activity"]:
+        first = data["recent_activity"][0]
+        assert "image_id" in first
+        assert "analysis_type" in first
 
 # =====================================================================
 # Tests for result_queries.sql Endpoints
@@ -493,11 +497,15 @@ def test_result_query6_case_analysis_report(client, auth_headers):
     assert "case_id" in item
     assert "image_id" in item
     assert "imaging_modality" in item
+    assert "total_segmentation_results" in item
+    assert "total_stenosis_results" in item
 
     # Retrieve with ?case_id= filter
     resp_filtered = client.get(f"/api/v1/sql/reports/case-analysis?case_id={item['case_id']}", headers=auth_headers)
     assert resp_filtered.status_code == 200
     assert len(resp_filtered.json()) >= 1
+    filtered_item = resp_filtered.json()[0]
+    assert filtered_item["case_id"] == item["case_id"]
 
 def test_result_query7_case_summary_counts(client, auth_headers):
     resp = client.get("/api/v1/sql/reports/case-summary-counts", headers=auth_headers)

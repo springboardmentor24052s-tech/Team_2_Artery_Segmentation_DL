@@ -543,6 +543,14 @@ The full application (`app.extended_main:app`) registers **48 operations across 
 | Q6 — View all medical images | `SQLClinicalService.get_all_medical_images` | `GET /api/v1/sql/images` |
 | Q7 — View all segmentation results | `SQLClinicalService.get_all_segmentation_results` | `GET /api/v1/sql/segmentation-results` |
 | Q8 — View all stenosis results | `SQLClinicalService.get_all_stenosis_results` | `GET /api/v1/sql/stenosis-results` |
+| Q9 — Retrieve cases by user ID | `SQLClinicalService.get_cases_by_user_id` | `GET /api/v1/sql/cases/user/{user_id}` |
+| Q10 — Insert a new case | `SQLClinicalService.create_case` | `POST /api/v1/sql/cases` |
+| Q11 — Update existing case details | `SQLClinicalService.update_case` | `PATCH /api/v1/sql/cases/{case_id}` |
+| Q12 — Retrieve specific case by case ID | `SQLClinicalService.get_case_by_id` | `GET /api/v1/sql/cases/{case_id}` |
+| Q13 — Retrieve images by case ID | `SQLClinicalService.get_images_by_case_id` | `GET /api/v1/sql/cases/{case_id}/images` |
+| Q14 — Retrieve specific image by image ID | `SQLClinicalService.get_image_by_id` | `GET /api/v1/sql/images/{image_id}` |
+| Q15 — Update medical image metadata | `SQLClinicalService.update_image_metadata` | `PATCH /api/v1/sql/images/{image_id}` |
+| Q16–Q18 — Delete image with dependency checks | `SQLClinicalService.delete_medical_image` | `DELETE /api/v1/sql/images/{image_id}` |
 
 ### `database/result_queries.sql`
 
@@ -553,12 +561,25 @@ The full application (`app.extended_main:app`) registers **48 operations across 
 | Q3 — Avg Dice per model | `SQLClinicalService.get_model_performance` | `GET /api/v1/sql/analytics/model-performance` |
 | Q4 — Full metrics per model | `SQLClinicalService.get_detailed_model_performance` | `GET /api/v1/sql/analytics/model-performance/detailed` |
 | Q5 — Severity distribution | `SQLClinicalService.get_stenosis_severity_distribution` | `GET /api/v1/sql/analytics/stenosis-severity-distribution` |
-| Q6 — Case-wise analysis report | `SQLClinicalService.get_case_analysis_report` | `GET /api/v1/sql/reports/case-analysis` |
+| Q6 — Case-wise analysis report (CTE aggregated) | `SQLClinicalService.get_case_analysis_report` | `GET /api/v1/sql/reports/case-analysis` |
 | Q7 — Case-wise summary counts | `SQLClinicalService.get_case_summary_counts` | `GET /api/v1/sql/reports/case-summary-counts` |
 | Q8 — FK relationship verification | `SQLClinicalService.diagnose_foreign_keys` | `GET /api/v1/sql/diagnostics/foreign-keys` |
 | Q9 — Project table verification | `SQLClinicalService.diagnose_tables` | `GET /api/v1/sql/diagnostics/tables` |
 | Q10 — Column & type inspection | `SQLClinicalService.diagnose_columns` | `GET /api/v1/sql/diagnostics/columns` |
 | Q11 — Orphan record check | `SQLClinicalService.diagnose_fk_consistency` | `GET /api/v1/sql/diagnostics/foreign-key-consistency` |
+| Q12 — Check existing medical image records | `SQLClinicalService.get_all_medical_images` | `GET /api/v1/sql/images` |
+| Q13 — Insert image details for case | `SQLClinicalService.insert_medical_image` | `POST /api/v1/sql/cases/{case_id}/images` |
+| Q14 — Insert segmentation results | `SQLClinicalService.insert_segmentation_result` | `POST /api/v1/sql/images/{image_id}/segmentation-results` |
+| Q15 — Retrieve segmentation by image ID | `SQLClinicalService.get_segmentations_by_image_id` | `GET /api/v1/sql/images/{image_id}/segmentation-results` |
+| Q16 — Retrieve segmentation by case ID | `SQLClinicalService.get_segmentations_by_case_id` | `GET /api/v1/sql/cases/{case_id}/segmentation-results` |
+| Q17 — Retrieve latest segmentation result | `SQLClinicalService.get_latest_segmentation_result` | `GET /api/v1/sql/segmentation-results/latest` |
+| Q18 — Insert stenosis detection results | `SQLClinicalService.insert_stenosis_result` | `POST /api/v1/sql/images/{image_id}/stenosis-results` |
+| Q19 — Retrieve stenosis by image ID | `SQLClinicalService.get_stenosis_by_image_id` | `GET /api/v1/sql/images/{image_id}/stenosis-results` |
+| Q20 — Retrieve stenosis by case ID | `SQLClinicalService.get_stenosis_by_case_id` | `GET /api/v1/sql/cases/{case_id}/stenosis-results` |
+| Q21 — Filter stenosis results by severity | `SQLClinicalService.filter_stenosis_by_severity` | `GET /api/v1/sql/stenosis-results/filter` |
+| Q22 — Sort stenosis results by confidence | `SQLClinicalService.get_stenosis_sorted_by_confidence` | `GET /api/v1/sql/stenosis-results?sort_by=confidence` |
+| Q23 — Retrieve latest stenosis results | `SQLClinicalService.get_latest_stenosis_result` | `GET /api/v1/sql/stenosis-results/latest` |
+| Q24–Q28 — Dashboard counts & recent activity | `SQLClinicalService.get_dashboard_analytics` | `GET /api/v1/sql/dashboard/analytics` |
 
 > [!NOTE]
 > `database/database_work.sql` is a **schema reference only** — it is not executed by the application. The application queries the tables it defines, but schema creation is a manual step in pgAdmin or psql.
@@ -863,8 +884,7 @@ The API stores and queries segmentation and stenosis metrics, but does not invok
 - Alembic migration scripts (framework configured, no revisions authored)
 - Unification of ORM `users` schema with clinical `users` schema
 - Deep learning inference integration (DICOM ingestion, model execution, mask output)
-- Recent activity log table for dashboard (currently returns empty list from two most-recent SELECT queries)
-- PostgreSQL live integration verification (blocked by local credential configuration)
+- Execution of `database/database_work.sql` DDL in the PostgreSQL database to create persistent clinical tables (`cases`, `medical_images`, `segmentation_results`, `stenosis_results`)
 
 ---
 
