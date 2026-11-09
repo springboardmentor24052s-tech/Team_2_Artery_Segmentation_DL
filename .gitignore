@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Dataset and uploaded images
+backend/app/data/
+uploads/
+backend/uploads/
+
+# Generated results and experiments
+results/
+backend/results/
+runs/
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.onnx
+*.h5
+*.keras
+
+# Frontend dependencies and build files
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/.vite/
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

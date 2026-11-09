@@ -1,116 +1,144 @@
-/**
- * Upload & Preprocessing Service (Provisional Endpoints)
- * 
- * Manages file uploads, preprocessing pipeline status polling,
- * and future deep learning segmentation result retrieval.
- */
 
-import { apiClient, IS_MOCK_MODE } from './api';
+import axios from 'axios';
 import { caseService } from './caseService';
 import { CASE_STATUS } from '../utils/constants';
 
-export const uploadService = {
-  /**
-   * Upload an angiography scan file associated with a research case
-   * Provisional Backend Route: POST /cases/:id/upload
-   * Content-Type: multipart/form-data
-   */
-  async uploadScan(caseId, file, onProgress = () => {}) {
-    if (IS_MOCK_MODE) {
-      // Simulate stepped upload progress
-      for (let percent = 10; percent <= 100; percent += 15) {
-        await new Promise((r) => setTimeout(r, 120));
-        onProgress(Math.min(percent, 100));
-      }
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-      // Attach file metadata to the mock case
+export const uploadService = {
+  async uploadScan(caseId, file, onProgress = () => {}, modelType = 'syntax') {
+    if (!caseId) {
+      throw new Error('Please select a research case.');
+    }
+
+    if (!file) {
+      throw new Error('Please select an angiography image.');
+    }
+
+    const endpoints = {
+      syntax: '/api/analysis/segment',
+      stenosis: '/api/analysis/segment/stenosis',
+    };
+
+    const endpoint = endpoints[modelType];
+
+    if (!endpoint) {
+      throw new Error('Invalid segmentation model selected.');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      onProgress(10);
+
+      const response = await axios.post(
+        `${BACKEND_URL}${endpoint}`,
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (event) => {
+            if (event.total) {
+              onProgress(
+                Math.min(Math.round((event.loaded / event.total) * 100), 90)
+              );
+            }
+          },
+          timeout: 120000,
+        }
+      );
+
+      const segmentation = response.data;
+      onProgress(95);
+
       const fileData = {
         name: file.name,
         size: file.size,
-        type: file.type || 'application/dicom',
+        type: file.type || 'image/png',
         uploadedAt: new Date().toISOString(),
-        dimensions: '512 x 512 px',
-        dicomMeta: {
-          photometric: 'MONOCHROME2',
-          kvp: '80 kV',
-          frameRate: '15 fps',
-          fieldOfView: '200 mm'
-        }
+        dimensions: `${segmentation.image_dimensions.width} x ${segmentation.image_dimensions.height} px`,
+      };
+
+      const segmentationData = {
+        imageId: segmentation.image_id,
+        model: segmentation.model,
+        modelType,
+        foregroundPixels: segmentation.foreground_pixels,
+        maskUrl: segmentation.mask_url,
+        probabilityMapUrl: segmentation.probability_map_url || null,
+        originalImageUrl: segmentation.original_image_url,
       };
 
       await caseService.updateCase(caseId, {
         status: CASE_STATUS.UPLOADED,
-        preprocessingStage: 'AWAITING_PREPROCESSING',
+        preprocessingStage: 'SEGMENTATION_COMPLETED',
         file: fileData,
+        segmentation: segmentationData,
       });
+
+      onProgress(100);
 
       return {
         success: true,
         caseId,
         file: fileData,
-        message: 'Scan uploaded and verified successfully.',
+        segmentation,
+        modelType,
+        maskUrl: `${BACKEND_URL}${segmentation.mask_url}`,
+        probabilityMapUrl: segmentation.probability_map_url
+          ? `${BACKEND_URL}${segmentation.probability_map_url}`
+          : null,
+        originalImageUrl: `${BACKEND_URL}${segmentation.original_image_url}`,
+        message: 'Image uploaded and segmentation completed successfully.',
       };
+    } catch (error) {
+      const message =
+        error.response?.data?.detail ||
+        error.message ||
+        'Image upload and segmentation failed.';
+
+      throw new Error(message);
     }
-
-    // Real API implementation
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('caseId', caseId);
-
-    const response = await apiClient.post(`/cases/${caseId}/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total) {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percentCompleted);
-        }
-      },
-    });
-
-    return response.data;
   },
 
-  /**
-   * Retrieve preprocessing status for a case
-   * Provisional Backend Route: GET /cases/:id/preprocessing
-   */
   async getPreprocessingStatus(caseId) {
-    if (IS_MOCK_MODE) {
-      const targetCase = await caseService.getCaseById(caseId);
-      return {
-        caseId: targetCase.id,
-        stage: targetCase.preprocessingStage || 'NOT_UPLOADED',
-        lastUpdated: new Date().toISOString(),
-        filePresent: Boolean(targetCase.file),
-      };
-    }
+    const targetCase = await caseService.getCaseById(caseId);
 
-    const response = await apiClient.get(`/cases/${caseId}/preprocessing`);
-    return response.data;
+    return {
+      caseId: targetCase.id,
+      stage: targetCase.preprocessingStage || 'NOT_UPLOADED',
+      lastUpdated: new Date().toISOString(),
+      filePresent: Boolean(targetCase.file),
+    };
   },
 
-  /**
-   * Retrieve future AI segmentation outputs
-   * Provisional Backend Route: GET /cases/:id/segmentation-results
-   * 
-   * NOTE: As per project guidelines, automated AI segmentation and stenosis
-   * calculations are not yet connected. This function returns an explicit
-   * not-available response.
-   */
   async getSegmentationResults(caseId) {
-    if (IS_MOCK_MODE) {
+    const targetCase = await caseService.getCaseById(caseId);
+
+    if (!targetCase.segmentation) {
       return {
         isAvailable: false,
-        message: 'AI segmentation model is not yet connected. Deep learning inference will be integrated in a future milestone.',
+        message: 'No segmentation result is available for this case.',
         caseId,
-        masks: null,
-        stenosisAnalysis: null,
       };
     }
 
-    const response = await apiClient.get(`/cases/${caseId}/segmentation-results`);
-    return response.data;
-  }
+    const segmentation = targetCase.segmentation;
+
+    return {
+      isAvailable: true,
+      caseId,
+      ...segmentation,
+      maskUrl: segmentation.maskUrl
+        ? `${BACKEND_URL}${segmentation.maskUrl}`
+        : null,
+      probabilityMapUrl: segmentation.probabilityMapUrl
+        ? `${BACKEND_URL}${segmentation.probabilityMapUrl}`
+        : null,
+      originalImageUrl: segmentation.originalImageUrl
+        ? `${BACKEND_URL}${segmentation.originalImageUrl}`
+        : null,
+    };
+  },
 };
