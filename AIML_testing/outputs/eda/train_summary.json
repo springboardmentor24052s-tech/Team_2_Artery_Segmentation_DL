@@ -1,0 +1,9 @@
+{
+    "split": "train",
+    "image_count": 1000,
+    "json_image_count": 1000,
+    "annotation_count": 1625,
+    "category_count": 26,
+    "stenosis_annotation_count": 1625,
+    "annotation_file": "C:\\Users\\rahul\\Desktop\\Artery_Project\\dataset\\arcade\\arcade\\stenosis\\train\\annotations\\train.json"
+}
