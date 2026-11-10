@@ -10,6 +10,7 @@ from app.db.base import Base
 from app.db.session import engine, get_db
 # Import models to ensure they are registered with Base metadata
 import app.models  # noqa: F401
+from app.services.inference_service import inference_service
 
 
 @asynccontextmanager
@@ -21,6 +22,13 @@ async def lifespan(app: FastAPI):
         # In environments where database is not yet ready during some tests or builds,
         # fail gracefully or log safely without printing secrets
         print(f"Database initialization warning: {type(e).__name__}")
+
+    # Load segmentation AI models once on application startup
+    try:
+        inference_service.load_models()
+    except Exception as e:
+        print(f"Inference models initialization warning: {type(e).__name__}: {e}")
+
     yield
 
 
