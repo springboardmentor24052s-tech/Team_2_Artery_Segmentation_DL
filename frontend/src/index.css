@@ -477,3 +477,222 @@ a:focus-visible {
     font-size: 15px;
   }
 }
+
+
+/* =========================================
+   ArteryAI complete workspace themes
+   Each preset changes the full application canvas and surfaces.
+   ========================================= */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #f7f9fc;
+  --surface-hover: #eef2f7;
+  --line: #d9e1ea;
+  --text-primary: #111827;
+  --text-secondary: #37465a;
+  --text-muted: #526176;
+  --accent: #147d83;
+  --accent-strong: #10666c;
+  --accent-soft: #e1f3f2;
+  --accent-rgb: 20, 125, 131;
+}
+
+:root[data-theme="blue"] {
+  color-scheme: light;
+  --app-bg: #e5efff;
+  --surface: #ffffff;
+  --surface-raised: #f0f6ff;
+  --surface-hover: #dce9fb;
+  --line: #bfd2ec;
+  --text-primary: #142d4b;
+  --text-secondary: #36516f;
+  --text-muted: #4d6684;
+  --accent: #245b9b;
+  --accent-strong: #194879;
+  --accent-soft: #dce9f8;
+  --accent-rgb: 36, 91, 155;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #080d16;
+  --surface: #111c2c;
+  --surface-raised: #17263a;
+  --surface-hover: #20334b;
+  --line: #30435a;
+  --text-primary: #f5f7fb;
+  --text-secondary: #d2dbea;
+  --text-muted: #b5c3d5;
+  --accent: #65c9c4;
+  --accent-strong: #8be0da;
+  --accent-soft: #21464d;
+  --accent-rgb: 101, 201, 196;
+}
+
+
+/* =========================================
+   ArteryAI refined clinical theme presets
+   ========================================= */
+
+/* Clinical White: true white workspace and crisp white cards. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-hover: #eef2f7;
+  --line: #dbe3ec;
+  --text-primary: #111827;
+  --text-secondary: #344256;
+  --text-muted: #526176;
+  --accent: #147d83;
+  --accent-strong: #10666c;
+  --accent-soft: #e1f3f2;
+  --accent-rgb: 20, 125, 131;
+}
+
+/* Clinical Blue: an unmistakably blue canvas behind white content cards. */
+:root[data-theme="blue"] {
+  color-scheme: light;
+  --app-bg: #e6f1ff;
+  --surface: #ffffff;
+  --surface-raised: #f3f8ff;
+  --surface-hover: #e3efff;
+  --line: #b9cfea;
+  --text-primary: #142d4b;
+  --text-secondary: #36516f;
+  --text-muted: #4d6684;
+  --accent: #245b9b;
+  --accent-strong: #194879;
+  --accent-soft: #dce9f8;
+  --accent-rgb: 36, 91, 155;
+}
+
+/* Midnight Navy: restore the original deep-navy clinical appearance. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #0b1628;
+  --surface: #14243a;
+  --surface-raised: #1a2d46;
+  --surface-hover: #243b58;
+  --line: #354b66;
+  --text-primary: #f4f7fc;
+  --text-secondary: #d2deee;
+  --text-muted: #aebed2;
+  --accent: #65c9c4;
+  --accent-strong: #8be0da;
+  --accent-soft: #21464d;
+  --accent-rgb: 101, 201, 196;
+}
+
+html, body, #root {
+  min-height: 100%;
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+body { background: var(--app-bg) !important; color: var(--text-primary); }
+.app-shell { background: var(--app-bg) !important; color: var(--text-primary) !important; }
+.workspace-main { background: var(--app-bg); }
+.app-navbar, .app-footer {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar {
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar .sidebar-brand {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar .brand-name { color: var(--text-primary) !important; }
+.app-sidebar .brand-subtitle { color: var(--text-muted) !important; }
+.app-sidebar .brand-xca {
+  background: var(--accent-soft) !important;
+  color: var(--accent-strong) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar .sidebar-dataset {
+  background: var(--surface-raised) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar .sidebar-dataset p:last-child { color: var(--text-primary) !important; }
+.app-sidebar .sidebar-nav-label { color: var(--text-muted) !important; }
+.app-sidebar .sidebar-link { color: var(--text-secondary) !important; }
+.app-sidebar .sidebar-link:hover {
+  background: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+.app-sidebar .sidebar-link[aria-current="page"] {
+  background: var(--accent-soft) !important;
+  color: var(--accent-strong) !important;
+  border-color: var(--line) !important;
+}
+.app-sidebar .sidebar-user { border-color: var(--line) !important; }
+
+/* Keep white content cards white in Clinical Blue, while the surrounding
+   workspace remains pale blue and visually distinct from Clinical White. */
+:root[data-theme="blue"] main { background: var(--app-bg) !important; }
+:root[data-theme="blue"] [class~="bg-white"] { background-color: #ffffff !important; }
+:root[data-theme="blue"] [class~="bg-slate-50"],
+:root[data-theme="blue"] [class~="bg-gray-50"] { background-color: #f3f8ff !important; }
+:root[data-theme="blue"] [class~="text-slate-900"],
+:root[data-theme="blue"] [class~="text-slate-800"],
+:root[data-theme="blue"] [class~="text-gray-900"] { color: var(--text-primary) !important; }
+:root[data-theme="blue"] [class~="text-slate-600"],
+:root[data-theme="blue"] [class~="text-slate-500"],
+:root[data-theme="blue"] [class~="text-gray-600"] { color: var(--text-secondary) !important; }
+:root[data-theme="blue"] [class~="border-slate-200"],
+:root[data-theme="blue"] [class~="border-gray-200"] { border-color: var(--line) !important; }
+
+/* Midnight overrides common Tailwind surfaces/text while retaining teal actions. */
+:root[data-theme="dark"] [class~="bg-white"],
+:root[data-theme="dark"] [class~="bg-white/90"] { background-color: var(--surface) !important; }
+:root[data-theme="dark"] [class~="bg-slate-50"],
+:root[data-theme="dark"] [class~="bg-slate-100"],
+:root[data-theme="dark"] [class~="bg-gray-50"],
+:root[data-theme="dark"] [class~="bg-gray-100"] { background-color: var(--surface-raised) !important; }
+:root[data-theme="dark"] [class~="bg-blue-50"],
+:root[data-theme="dark"] [class~="bg-indigo-50"],
+:root[data-theme="dark"] [class~="bg-teal-50"],
+:root[data-theme="dark"] [class~="bg-emerald-50"],
+:root[data-theme="dark"] [class~="bg-green-50"],
+:root[data-theme="dark"] [class~="bg-purple-50"] { background-color: var(--accent-soft) !important; }
+:root[data-theme="dark"] [class~="text-slate-900"],
+:root[data-theme="dark"] [class~="text-slate-800"],
+:root[data-theme="dark"] [class~="text-slate-700"],
+:root[data-theme="dark"] [class~="text-gray-900"],
+:root[data-theme="dark"] [class~="text-gray-800"],
+:root[data-theme="dark"] [class~="text-gray-700"] { color: var(--text-primary) !important; }
+:root[data-theme="dark"] [class~="text-slate-600"],
+:root[data-theme="dark"] [class~="text-slate-500"],
+:root[data-theme="dark"] [class~="text-gray-600"],
+:root[data-theme="dark"] [class~="text-gray-500"] { color: var(--text-secondary) !important; }
+:root[data-theme="dark"] [class~="text-slate-400"],
+:root[data-theme="dark"] [class~="text-slate-300"],
+:root[data-theme="dark"] [class~="text-gray-400"],
+:root[data-theme="dark"] [class~="text-gray-300"] { color: var(--text-muted) !important; }
+:root[data-theme="dark"] [class~="border-slate-100"],
+:root[data-theme="dark"] [class~="border-slate-200"],
+:root[data-theme="dark"] [class~="border-slate-300"],
+:root[data-theme="dark"] [class~="border-gray-100"],
+:root[data-theme="dark"] [class~="border-gray-200"],
+:root[data-theme="dark"] [class~="border-gray-300"] { border-color: var(--line) !important; }
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--line) !important;
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder { color: var(--text-muted) !important; opacity: 1; }
+:root[data-theme="dark"] .app-sidebar .sidebar-link[aria-current="page"] {
+  color: #a5eeea !important;
+}
+small, .text-xs { line-height: 1.5; }

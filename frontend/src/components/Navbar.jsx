@@ -16,17 +16,12 @@ import { useCases } from '../context/CaseContext';
 import { useTheme } from '../context/ThemeContext';
 import { APP_NAME } from '../utils/constants';
 
-const ACCENT_OPTIONS = [
-  { id: 'blue', label: 'Blue', color: '#3b82f6' },
-  { id: 'teal', label: 'Teal', color: '#14b8a6' },
-  { id: 'purple', label: 'Purple', color: '#a855f7' },
-  { id: 'green', label: 'Green', color: '#22c55e' },
-];
+
 
 export default function Navbar({ onToggleSidebar }) {
   const { user } = useAuth();
   const { resetCases } = useCases();
-  const { theme, setTheme, accent, setAccent } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   const [resetToast, setResetToast] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -40,7 +35,7 @@ export default function Navbar({ onToggleSidebar }) {
   };
 
   return (
-    <header className="sticky top-0 z-30 min-h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-3 shadow-sm">
+    <header className="app-navbar sticky top-0 z-30 min-h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-3 shadow-sm">
       {/* Left: Mobile menu and branding */}
       <div className="flex items-center gap-3 min-w-0">
         <button
@@ -129,76 +124,36 @@ export default function Navbar({ onToggleSidebar }) {
                   </p>
                 </div>
 
-                {/* Theme selection */}
+                {/* Complete workspace theme presets */}
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
-                  Theme
+                  Workspace theme
                 </p>
-
-                <div className="grid grid-cols-2 gap-2 mb-5">
-                  <button
-                    type="button"
-                    onClick={() => setTheme('light')}
-                    aria-pressed={theme === 'light'}
-                    className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors ${
-                      theme === 'light'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Sun className="w-4 h-4" />
-                    Light
-                    {theme === 'light' && <Check className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTheme('dark')}
-                    aria-pressed={theme === 'dark'}
-                    className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors ${
-                      theme === 'dark'
-                        ? 'border-blue-500 bg-slate-800 text-blue-300'
-                        : 'border-slate-700 bg-slate-950 text-slate-200 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Moon className="w-4 h-4" />
-                    Dark
-                    {theme === 'dark' && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-
-                {/* Accent selection */}
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">
-                  Accent colour
-                </p>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {ACCENT_OPTIONS.map((option) => {
-                    const selected = accent === option.id;
-
+                <div className="space-y-2">
+                  {[
+                    { id: 'light', label: 'Clinical White', description: 'Pure white workspace and crisp white cards', icon: Sun },
+                    { id: 'blue', label: 'Clinical Blue', description: 'Clearly blue workspace with white cards', icon: Palette },
+                    { id: 'dark', label: 'Midnight Navy', description: 'Near-black workspace and charcoal panels', icon: Moon },
+                  ].map((option) => {
+                    const Icon = option.icon;
+                    const selected = theme === option.id;
                     return (
                       <button
                         key={option.id}
                         type="button"
-                        onClick={() => setAccent(option.id)}
-                        aria-label={`${option.label} accent colour`}
+                        onClick={() => setTheme(option.id)}
                         aria-pressed={selected}
-                        className={`flex flex-col items-center gap-2 rounded-lg border p-2 transition-colors ${
+                        className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                           selected
-                            ? 'border-blue-500 bg-slate-50 dark:bg-slate-800'
-                            : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
+                            ? 'border-teal-600 bg-teal-50 text-slate-900 dark:border-teal-400 dark:bg-teal-950 dark:text-white'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
-                        <span
-                          className="flex h-7 w-7 items-center justify-center rounded-full"
-                          style={{ backgroundColor: option.color }}
-                        >
-                          {selected && (
-                            <Check className="w-4 h-4 text-white" />
-                          )}
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold">{option.label}</span>
+                          <span className="block text-xs opacity-75">{option.description}</span>
                         </span>
-                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
-                          {option.label}
-                        </span>
+                        {selected && <Check className="w-4 h-4 shrink-0" />}
                       </button>
                     );
                   })}

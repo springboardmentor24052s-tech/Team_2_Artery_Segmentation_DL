@@ -1,70 +1,38 @@
-
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext(null);
+const VALID_THEMES = ['light', 'blue', 'dark'];
 
-const VALID_THEMES = ['light', 'dark'];
-const VALID_ACCENTS = ['blue', 'teal', 'purple', 'green'];
-
-function readPreference(key, allowedValues, fallback) {
+function readTheme() {
   try {
-    const savedValue = localStorage.getItem(key);
-    return allowedValues.includes(savedValue) ? savedValue : fallback;
+    const saved = localStorage.getItem('arteryai-theme');
+    // Keep existing users' saved light/dark preferences working.
+    return VALID_THEMES.includes(saved) ? saved : 'light';
   } catch {
-    return fallback;
+    return 'light';
   }
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() =>
-    readPreference('arteryai-theme', VALID_THEMES, 'light')
-  );
-
-  const [accent, setAccent] = useState(() =>
-    readPreference('arteryai-accent', VALID_ACCENTS, 'blue')
-  );
+  const [theme, setTheme] = useState(readTheme);
 
   useEffect(() => {
-    const root = document.documentElement;
-
-    root.dataset.theme = theme;
-    root.dataset.accent = accent;
-
-    try {
-      localStorage.setItem('arteryai-theme', theme);
-      localStorage.setItem('arteryai-accent', accent);
-    } catch {
-      // The selected theme still works if browser storage is unavailable.
-    }
-  }, [theme, accent]);
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('arteryai-theme', theme); } catch { /* Storage is optional. */ }
+  }, [theme]);
 
   const value = {
     theme,
-    accent,
     setTheme,
-    setAccent,
-    toggleTheme: () =>
-      setTheme((current) => current === 'light' ? 'dark' : 'light'),
+    // Backwards-compatible helper for any existing component using it.
+    toggleTheme: () => setTheme((current) => current === 'dark' ? 'light' : 'dark'),
   };
 
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-
-  if (!context) {
-    throw new Error('useTheme must be used inside ThemeProvider');
-  }
-
+  if (!context) throw new Error('useTheme must be used inside ThemeProvider');
   return context;
 }

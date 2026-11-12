@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Bot,
   ExternalLink,
+  Activity,
 } from 'lucide-react';
 import Button from '../components/Button';
 import StatusBadge from '../components/StatusBadge';
@@ -86,6 +87,16 @@ export default function CaseDetails() {
           >
             Preprocessing Status
           </Button>
+          {hasUploadedFile && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Activity}
+              onClick={() => navigate(`/cases/${caseData.id}/analysis`)}
+            >
+              AI Analysis Workspace
+            </Button>
+          )}
         </div>
       </div>
 

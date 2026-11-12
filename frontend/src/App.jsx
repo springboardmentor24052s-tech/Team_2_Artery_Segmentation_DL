@@ -14,6 +14,7 @@ import CaseHistory from './pages/CaseHistory';
 import CaseDetails from './pages/CaseDetails';
 import UploadScan from './pages/UploadScan';
 import PreprocessingStatus from './pages/PreprocessingStatus';
+import AnalysisWorkspace from './pages/AnalysisWorkspace';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/cases" element={<CaseHistory />} />
           <Route path="/cases/create" element={<CreateCase />} />
           <Route path="/cases/:id" element={<CaseDetails />} />
+          <Route path="/cases/:id/analysis" element={<AnalysisWorkspace />} />
           <Route path="/upload" element={<UploadScan />} />
           <Route path="/preprocessing" element={<PreprocessingStatus />} />
         </Route>

@@ -8,6 +8,7 @@
 import { apiClient, IS_MOCK_MODE } from './api';
 import { caseService } from './caseService';
 import { CASE_STATUS } from '../utils/constants';
+import { saveScanAsset } from './scanAssetService';
 
 export const uploadService = {
   /**
@@ -17,6 +18,15 @@ export const uploadService = {
    */
   async uploadScan(caseId, file, onProgress = () => {}) {
     if (IS_MOCK_MODE) {
+      // Keep the original file in browser IndexedDB so the analysis page can preview it.
+      // This is local demo storage, not a server upload or model result.
+      try {
+        await saveScanAsset(caseId, file);
+      } catch (storageError) {
+        // Preview storage is optional; do not block the case upload flow if unavailable.
+        console.warn('Local scan preview could not be stored:', storageError);
+      }
+
       // Simulate stepped upload progress
       for (let percent = 10; percent <= 100; percent += 15) {
         await new Promise((r) => setTimeout(r, 120));
