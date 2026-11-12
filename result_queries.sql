@@ -407,4 +407,111 @@ JOIN medical_images m
 ORDER BY analysis_date DESC
 LIMIT 10;
 
+-- ==========================================
+-- EXPLAINABLE AI RESULTS
+-- ==========================================
+
+-- Create Explainable AI results table
+-- Stores Grad-CAM heatmap and explanation details
+
+CREATE TABLE explainability_results (
+    explanation_id SERIAL PRIMARY KEY,
+    image_id INT REFERENCES medical_images(image_id),
+    stenosis_id INT REFERENCES stenosis_results(stenosis_id),
+    method VARCHAR(100),
+    heatmap_path TEXT,
+    overlay_path TEXT,
+    model_name VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Display all columns in explainability_results
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'explainability_results';
+
+-- Insert Explainable AI result
+
+INSERT INTO explainability_results
+(image_id, stenosis_id, method, heatmap_path, overlay_path, model_name)
+VALUES
+(2, 1, 'Grad-CAM',
+ 'results/heatmaps/heatmap_1.png',
+ 'results/overlays/overlay_1.png',
+ 'U-Net');
+
+-- Display available medical image IDs
+
+SELECT image_id, image_name
+FROM medical_images;
+
+
+-- Display available stenosis result IDs
+
+SELECT stenosis_id, image_id, severity
+FROM stenosis_results;
+
+
+-- Retrieve all Explainable AI results
+
+SELECT *
+FROM explainability_results;
+
+-- Retrieve Explainable AI results with stenosis details
+
+SELECT
+    e.explanation_id,
+    m.image_name,
+    s.severity,
+    e.method,
+    e.heatmap_path,
+    e.overlay_path,
+    e.model_name,
+    e.created_at
+FROM explainability_results e
+JOIN medical_images m
+    ON e.image_id = m.image_id
+JOIN stenosis_results s
+    ON e.stenosis_id = s.stenosis_id;
+
+
+-- ==========================================
+-- STENOSIS VISUALIZATION
+-- ==========================================
+
+-- Check existing columns in stenosis_results
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'stenosis_results';
+
+-- Add column to store stenosis visualization image path
+
+ALTER TABLE stenosis_results
+ADD COLUMN visualization_path TEXT;
+
+
+-- Add column to store annotated angiography image path
+
+ALTER TABLE stenosis_results
+ADD COLUMN annotated_image_path TEXT;
+
+-- Update stenosis visualization image paths
+
+UPDATE stenosis_results
+SET
+    visualization_path = 'results/stenosis/stenosis_visualization_1.png',
+    annotated_image_path = 'results/stenosis/annotated_image_1.png'
+WHERE stenosis_id = 1;
+
+-- Retrieve stenosis visualization details
+
+SELECT
+    stenosis_id,
+    image_id,
+    severity,
+    visualization_path,
+    annotated_image_path
+FROM stenosis_results;
 
