@@ -113,7 +113,35 @@ for filename in WORST_IMAGES:
         continue
 
     gt = create_ground_truth(image_info)
+        # Verify reconstructed GT against audited mask
+    mask_path = (
+        ROOT
+        / "backend/results/arcade_masks/stenosis/val"
+        / f"{Path(filename).stem}_mask.png"
+    )
 
+    audited_mask = cv2.imread(
+        str(mask_path),
+        cv2.IMREAD_GRAYSCALE
+    )
+
+    if audited_mask is None:
+        raise FileNotFoundError(
+            f"Audited mask not found: {mask_path}"
+        )
+
+    audited_mask = (audited_mask > 0).astype(np.uint8) * 255
+
+    differences = np.count_nonzero(gt != audited_mask)
+
+    print("Ground truth vs audited mask differences:", differences)
+
+    if differences != 0:
+        raise ValueError(
+            f"Ground truth mismatch for {filename}"
+        )
+
+    print("Ground truth alignment: VERIFIED")
     prediction = predict_stenosis(image_path)
 
     probability = np.asarray(
