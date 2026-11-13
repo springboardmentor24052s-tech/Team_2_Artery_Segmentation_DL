@@ -12,6 +12,7 @@ import torch.nn as nn
 # --------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 DEVICE = torch.device("cpu")
 
 SYNTAX_MODEL_PATH = (
@@ -19,7 +20,7 @@ SYNTAX_MODEL_PATH = (
 )
 
 STENOSIS_MODEL_PATH = (
-    PROJECT_ROOT / "results" / "attention_unet_stenosis_v3.pth"
+    PROJECT_ROOT / "results" / "attention_unet_stenosis_v4.pth"
 )
 
 SYNTAX_THRESHOLD = 0.5
@@ -31,12 +32,14 @@ STENOSIS_THRESHOLD = 0.20
 # --------------------------------------------------
 
 class DoubleConv(nn.Module):
+
     def __init__(self, in_channels, out_channels):
         super().__init__()
 
         self.layers = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True),
+
             nn.Conv2d(out_channels, out_channels, 3, padding=1),
             nn.ReLU(inplace=True)
         )
@@ -50,6 +53,7 @@ class DoubleConv(nn.Module):
 # --------------------------------------------------
 
 class UNet(nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -73,6 +77,7 @@ class UNet(nn.Module):
         self.output = nn.Conv2d(16, 1, 1)
 
     def forward(self, x):
+
         e1 = self.enc1(x)
         e2 = self.enc2(self.pool(e1))
         e3 = self.enc3(self.pool(e2))
@@ -96,6 +101,7 @@ class UNet(nn.Module):
 # --------------------------------------------------
 
 class AttentionGate(nn.Module):
+
     def __init__(
         self,
         gate_channels,
@@ -105,12 +111,20 @@ class AttentionGate(nn.Module):
         super().__init__()
 
         self.gate_conv = nn.Sequential(
-            nn.Conv2d(gate_channels, intermediate_channels, 1),
+            nn.Conv2d(
+                gate_channels,
+                intermediate_channels,
+                1
+            ),
             nn.BatchNorm2d(intermediate_channels)
         )
 
         self.skip_conv = nn.Sequential(
-            nn.Conv2d(skip_channels, intermediate_channels, 1),
+            nn.Conv2d(
+                skip_channels,
+                intermediate_channels,
+                1
+            ),
             nn.BatchNorm2d(intermediate_channels)
         )
 
@@ -122,6 +136,7 @@ class AttentionGate(nn.Module):
         )
 
     def forward(self, gate, skip):
+
         gate_features = self.gate_conv(gate)
         skip_features = self.skip_conv(skip)
 
@@ -137,6 +152,7 @@ class AttentionGate(nn.Module):
 # --------------------------------------------------
 
 class AttentionUNet(nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -163,6 +179,7 @@ class AttentionUNet(nn.Module):
         self.output = nn.Conv2d(16, 1, 1)
 
     def forward(self, x):
+
         e1 = self.enc1(x)
         e2 = self.enc2(self.pool(e1))
         e3 = self.enc3(self.pool(e2))
@@ -185,10 +202,11 @@ class AttentionUNet(nn.Module):
 
 
 # --------------------------------------------------
-# LOAD BOTH TRAINED MODELS
+# LOAD TRAINED MODELS
 # --------------------------------------------------
 
 def load_trained_model(model_class, checkpoint_path):
+
     if not checkpoint_path.exists():
         raise FileNotFoundError(
             f"Model checkpoint not found: {checkpoint_path}"
@@ -202,7 +220,11 @@ def load_trained_model(model_class, checkpoint_path):
         weights_only=True
     )
 
-    trained_model.load_state_dict(state_dict)
+    trained_model.load_state_dict(
+        state_dict,
+        strict=True
+    )
+
     trained_model.eval()
 
     return trained_model
@@ -224,13 +246,16 @@ stenosis_model = load_trained_model(
 # --------------------------------------------------
 
 def preprocess_image(image_path):
+
     image = cv2.imread(
         str(image_path),
         cv2.IMREAD_GRAYSCALE
     )
 
     if image is None:
-        raise ValueError("Unable to read the uploaded image.")
+        raise ValueError(
+            "Unable to read the uploaded image."
+        )
 
     height, width = image.shape
 
@@ -248,23 +273,62 @@ def preprocess_image(image_path):
 # --------------------------------------------------
 
 def run_prediction(image_path, trained_model, threshold):
+
     image, tensor, height, width = preprocess_image(image_path)
 
+    # Run model prediction.
     with torch.no_grad():
+
         logits = trained_model(tensor)
+
         probabilities = torch.sigmoid(logits)
 
-    probability_map = probabilities.squeeze().cpu().numpy()
+    # Convert probability tensor to NumPy array.
+    probability_map = (
+        probabilities.squeeze().cpu().numpy()
+    )
 
+    # Validate model output.
+    if probability_map.ndim != 2:
+        raise ValueError(
+            "Unexpected model output dimensions. "
+            f"Expected a 2D probability map, got {probability_map.shape}."
+        )
+
+    if not np.isfinite(probability_map).all():
+        raise ValueError(
+            "Model produced non-finite probability values."
+        )
+
+    # Resize probability map to original image dimensions.
+    # Linear interpolation preserves probability values.
+    if probability_map.shape != (height, width):
+
+        probability_map = cv2.resize(
+            probability_map.astype(np.float32),
+            (width, height),
+            interpolation=cv2.INTER_LINEAR
+        )
+
+    # Keep probabilities within valid range.
+    probability_map = np.clip(
+        probability_map,
+        0.0,
+        1.0
+    ).astype(np.float32)
+
+    # Generate binary mask from the resized probability map.
     binary_mask = (
         probability_map >= threshold
     ).astype(np.uint8) * 255
 
-    if binary_mask.shape != (height, width):
-        binary_mask = cv2.resize(
-            binary_mask,
-            (width, height),
-            interpolation=cv2.INTER_NEAREST
+    # Final dimension validation.
+    if (
+        binary_mask.shape != (height, width)
+        or probability_map.shape != (height, width)
+    ):
+        raise ValueError(
+            "Prediction dimensions do not match original image dimensions."
         )
 
     return {
@@ -281,6 +345,7 @@ def run_prediction(image_path, trained_model, threshold):
 # --------------------------------------------------
 
 def predict_segmentation(image_path):
+
     return run_prediction(
         image_path,
         syntax_model,
@@ -289,6 +354,7 @@ def predict_segmentation(image_path):
 
 
 def predict_stenosis(image_path):
+
     return run_prediction(
         image_path,
         stenosis_model,

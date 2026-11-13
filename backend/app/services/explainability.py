@@ -15,10 +15,14 @@ from app.services.segmentation import (
 def generate_gradcam(image_path, output_dir=None):
     """
     Generate experimental Grad-CAM visualizations
-    using the trained Attention U-Net V3 stenosis model.
+    using the trained Attention U-Net V4 stenosis model.
+
+    Target layer:
+        dec2 (256 x 256 feature map).
 
     Target:
-        Mean of the highest stenosis-probability pixels.
+        Mean of the highest stenosis-probability pixels
+        (top 1 percent).
 
     Note:
         This is an experimental segmentation-based
@@ -26,7 +30,7 @@ def generate_gradcam(image_path, output_dir=None):
     """
 
     model = stenosis_model
-    target_layer = model.bottleneck
+    target_layer = model.dec2
 
     image, tensor, height, width = preprocess_image(image_path)
 
@@ -303,7 +307,7 @@ def generate_gradcam(image_path, output_dir=None):
 
             "method": "Grad-CAM",
 
-            "target_layer": "bottleneck",
+            "target_layer": "dec2",
 
             "target_method": "top_1_percent_probability",
 

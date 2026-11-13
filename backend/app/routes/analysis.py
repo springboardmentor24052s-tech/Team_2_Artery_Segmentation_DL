@@ -178,7 +178,7 @@ async def segment_image(file: UploadFile = File(...)):
 
 
 # --------------------------------------------------
-# 2. STENOSIS SEGMENTATION - ATTENTION U-NET V3
+# 2. STENOSIS SEGMENTATION - ATTENTION U-NET V4
 # --------------------------------------------------
 
 @router.post("/segment/stenosis")
@@ -223,7 +223,7 @@ async def segment_stenosis(file: UploadFile = File(...)):
 
         return {
             "status": "success",
-            "model": "Attention U-Net V3",
+            "model": "Attention U-Net V4",
             "message": "Stenosis segmentation completed successfully.",
             "image_id": image_id,
             "image_dimensions": {
@@ -293,7 +293,7 @@ async def analyze_image(file: UploadFile = File(...)):
 
         syntax_mask = syntax_prediction["mask"]
 
-        # 4. Run stenosis segmentation.
+        # 4. Run stenosis segmentation using Attention U-Net V4.
         stenosis_prediction = predict_stenosis(input_path)
 
         stenosis_mask = stenosis_prediction["mask"]
@@ -390,7 +390,7 @@ async def analyze_image(file: UploadFile = File(...)):
             },
 
             "stenosis_segmentation": {
-                "model": "Attention U-Net V3",
+                "model": "Attention U-Net V4",
                 "foreground_pixels": int(
                     np.count_nonzero(stenosis_mask)
                 ),
