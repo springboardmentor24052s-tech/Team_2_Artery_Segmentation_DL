@@ -63,8 +63,7 @@ CREATE TABLE segmentation_results (
     created_at TIMESTAMP WITHOUT TIME ZONE NULL,
     overlay_path TEXT NULL
 );
-
-CREATE TABLE stenosis_results (
+\CREATE TABLE stenosis_results (
     stenosis_id SERIAL PRIMARY KEY,
     image_id INTEGER NULL REFERENCES medical_images (image_id),
     location TEXT NULL,
