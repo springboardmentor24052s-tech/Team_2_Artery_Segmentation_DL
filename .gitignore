@@ -1,29 +1,52 @@
-# IDE
-.vscode/
 
-# Python cache
+# IDE and editor files
+.vscode/
+.idea/
+
+# Python cache and test artifacts
 __pycache__/
 *.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.coverage
 
-# Frontend generated files
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies and build files
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-frontend/.env
-frontend/.env.*
-!frontend/.env.example
+frontend/node_modules/.vite/
 
-# Generated files
+# Dataset and uploaded images
+backend/app/data/
+uploads/
+backend/uploads/
+
+# Generated results and experiments
 results/
 runs/
-uploads/
 backend/results/
-backend/uploads/
-backend/app/data/
 
-# Model weights
+# Model weights and checkpoints
 *.pt
 *.pth
+*.onnx
+*.h5
+*.keras
 
 # Backup files
 *.backup
+
+# Operating system files
+.DS_Store
+Thumbs.db
