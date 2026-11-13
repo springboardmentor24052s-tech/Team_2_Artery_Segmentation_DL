@@ -48,6 +48,27 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
 
+    # Image Storage
+    STORAGE_DIR: str = Field(
+        default="uploads",
+        description="Directory for storing uploaded angiography images and inference outputs",
+    )
+    MAX_UPLOAD_SIZE_MB: int = Field(
+        default=10,
+        description="Maximum upload size in megabytes",
+    )
+
+    @field_validator("STORAGE_DIR", mode="before")
+    @classmethod
+    def resolve_storage_dir(cls, v: str) -> str:
+        """Resolve storage directory relative to project root if not absolute."""
+        if not v:
+            return v
+        p = Path(v)
+        if not p.is_absolute():
+            return str(BASE_DIR / p)
+        return str(p)
+
 
 settings = Settings()
 

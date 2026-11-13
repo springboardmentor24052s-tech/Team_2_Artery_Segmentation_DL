@@ -171,9 +171,9 @@ SELECT
     'Cases without valid users' AS check_name,
     COUNT(*) AS invalid_records
 FROM cases c
-LEFT JOIN users u
-    ON c.user_id = u.user_id
-WHERE u.user_id IS NULL
+            LEFT JOIN users u
+                ON c.user_id = u.id
+            WHERE u.id IS NULL
 
 UNION ALL
 

@@ -9,7 +9,7 @@ CREATE TABLE users (
 
 CREATE TABLE cases (
     case_id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(user_id),
+    user_id UUID REFERENCES users(id),
     case_name VARCHAR(150),
     imaging_modality VARCHAR(50),
     target_vessel VARCHAR(100),
@@ -50,7 +50,7 @@ ALTER TABLE segmentation_results
 ADD COLUMN IF NOT EXISTS iou_score NUMERIC(6,5),
 ADD COLUMN IF NOT EXISTS processed_mask_path TEXT,
 ADD COLUMN IF NOT EXISTS centerline_path TEXT,
-ADD COLUMN IF NOT EXISTS model_version VARCHAR(50);
+ADD COLUMN IF NOT EXISTS model_version VARCHAR(50),
 ADD COLUMN IF NOT EXISTS precision_score NUMERIC(6,5),
 ADD COLUMN IF NOT EXISTS recall_score NUMERIC(6,5),
 ADD COLUMN IF NOT EXISTS f1_score NUMERIC(6,5),

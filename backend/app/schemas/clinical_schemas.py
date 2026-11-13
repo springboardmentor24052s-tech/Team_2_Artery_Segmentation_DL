@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Union
+import uuid
 from datetime import datetime
+from typing import Optional, List, Union
+from pydantic import BaseModel, EmailStr, Field
 
 # --- Auth Queries Schemas ---
 class EmailExistsResponse(BaseModel):
@@ -8,22 +9,21 @@ class EmailExistsResponse(BaseModel):
     exists: bool
 
 class UserPublicRecord(BaseModel):
-    user_id: Union[int, str]
-    full_name: Optional[str] = None
+    user_id: uuid.UUID
+    name: Optional[str] = None
     email: EmailStr
     created_at: Optional[datetime] = None
 
 class UserNameUpdate(BaseModel):
-    full_name: str = Field(..., min_length=1, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
 
 class UserNameUpdateResponse(BaseModel):
-    user_id: Union[int, str]
-    full_name: str
+    user_id: uuid.UUID
+    name: str
     message: str
 
 # --- Case Schemas ---
 class CaseCreateRequest(BaseModel):
-    user_id: Optional[int] = Field(None, description="Integer user ID referencing users table (if available in schema)")
     case_name: str = Field(..., min_length=1, max_length=150)
     imaging_modality: Optional[str] = Field("CTA", max_length=50)
     target_vessel: Optional[str] = Field("LAD", max_length=100)
@@ -37,7 +37,7 @@ class CaseUpdateRequest(BaseModel):
 
 class CaseResponse(BaseModel):
     case_id: int
-    user_id: Optional[Union[int, str]] = None
+    user_id: Optional[uuid.UUID] = None
     case_name: str
     imaging_modality: Optional[str] = None
     target_vessel: Optional[str] = None
@@ -73,6 +73,7 @@ class MessageActionResponse(BaseModel):
 # --- Segmentation Results Schemas ---
 class SegmentationResultCreateRequest(BaseModel):
     mask_path: Optional[str] = None
+    overlay_path: Optional[str] = None
     model_name: Optional[str] = Field(None, max_length=100)
     dice_score: Optional[float] = Field(None, ge=0.0, le=1.0)
     iou_score: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -88,6 +89,7 @@ class SegmentationResultResponse(BaseModel):
     segmentation_id: int
     image_id: int
     mask_path: Optional[str] = None
+    overlay_path: Optional[str] = None
     model_name: Optional[str] = None
     dice_score: Optional[float] = None
     created_at: Optional[datetime] = None
@@ -204,4 +206,33 @@ class TableColumnInfo(BaseModel):
 class DataConsistencyCheckItem(BaseModel):
     check_name: str
     invalid_records: int
+
+
+# --- Image Upload & Persisted Inference Schemas ---
+class ImageUploadResponse(BaseModel):
+    image_id: int
+    case_id: int
+    image_name: str
+    image_format: Optional[str] = None
+    image_size: Optional[int] = None
+    storage_identifier: str
+    uploaded_at: Optional[datetime] = None
+
+
+class PersistedInferenceResponse(BaseModel):
+    image_id: int
+    segmentation_id: int
+    case_id: int
+    model_name: str
+    threshold: float
+    original_height: int
+    original_width: int
+    segmented_pixels: int
+    vessel_area_ratio: float
+    storage_identifier: str
+    mask_storage_identifier: Optional[str] = None
+    overlay_storage_identifier: Optional[str] = None
+    mask_base64: Optional[str] = None
+    overlay_base64: Optional[str] = None
+    created_at: Optional[datetime] = None
 

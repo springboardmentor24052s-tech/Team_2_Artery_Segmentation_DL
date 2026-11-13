@@ -1,4 +1,5 @@
 from typing import List, Optional
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from pydantic import EmailStr
 from sqlalchemy.orm import Session
@@ -54,20 +55,20 @@ def check_email_exists(
 @router.get(
     "/users/by-email",
     response_model=UserPublicRecord,
-    summary="[auth_queries.sql Query 2] Retrieve user for login verification (Excludes password hash)"
+    summary="[auth_queries.sql Query 2] Retrieve user for login verification (Excludes password hash) - Admin Only"
 )
 def get_user_by_email_verification(
     email: EmailStr = Query(..., description="Email address of user to retrieve"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    admin_user: User = Depends(RoleChecker([UserRole.ADMINISTRATOR]))
 ):
     try:
-        record = SQLClinicalService.get_user_by_email_for_verification(db, email)
+        record = SQLClinicalService.get_user_by_email_for_verification(db, email, user_id=None)
         if not record:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return UserPublicRecord(
-            user_id=record["user_id"],
-            full_name=record.get("full_name"),
+            user_id=record["id"],
+            name=record.get("name"),
             email=record["email"],
             created_at=record.get("created_at")
         )
@@ -80,18 +81,18 @@ def get_user_by_email_verification(
 @router.get(
     "/users",
     response_model=List[UserPublicRecord],
-    summary="[auth_queries.sql Query 3] View registered users (without password hashes)"
+    summary="[auth_queries.sql Query 3] View registered users (without password hashes) - Admin Only"
 )
 def get_registered_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    admin_user: User = Depends(RoleChecker([UserRole.ADMINISTRATOR]))
 ):
     try:
-        records = SQLClinicalService.get_registered_users(db)
+        records = SQLClinicalService.get_registered_users(db, user_id=None)
         return [
             UserPublicRecord(
-                user_id=r["user_id"],
-                full_name=r.get("full_name"),
+                user_id=r["id"],
+                name=r.get("name"),
                 email=r["email"],
                 created_at=r.get("created_at")
             )
@@ -106,7 +107,7 @@ def get_registered_users(
 @router.patch(
     "/users/{user_id}/name",
     response_model=UserNameUpdateResponse,
-    summary="[auth_queries.sql Query 4] Update user's name"
+    summary="[auth_queries.sql Query 4] Update user's name (owner or admin only)"
 )
 def update_user_name(
     user_id: str = Path(..., description="User ID to update"),
@@ -115,13 +116,28 @@ def update_user_name(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        updated = SQLClinicalService.update_user_name(db, user_id=user_id, full_name=name_in.full_name)
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid user ID format")
+    
+    is_admin = current_user.role == UserRole.ADMINISTRATOR.value
+    if not is_admin and current_user.id != user_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted: insufficient privileges"
+        )
+    
+    try:
+        updated = SQLClinicalService.update_user_name(
+            db, user_id=user_id, full_name=name_in.name,
+            current_user_id=current_user.id, is_admin=is_admin
+        )
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or name unchanged")
         return UserNameUpdateResponse(
             user_id=user_id,
-            full_name=name_in.full_name,
-            message="User full name updated successfully"
+            name=name_in.name,
+            message="User name updated successfully"
         )
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
@@ -136,14 +152,15 @@ def update_user_name(
 @router.get(
     "/cases",
     response_model=List[CaseResponse],
-    summary="[auth_queries.sql Query 5] View all cases"
+    summary="[auth_queries.sql Query 5] View all cases (own cases only, admin sees all)"
 )
 def get_sql_cases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_all_cases(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_all_cases(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -162,7 +179,7 @@ def create_case(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.create_case(db, case_in)
+        return SQLClinicalService.create_case(db, case_in, user_id=current_user.id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -172,7 +189,7 @@ def create_case(
 @router.get(
     "/cases/{case_id}",
     response_model=CaseResponse,
-    summary="Retrieve a specific case by case_id"
+    summary="Retrieve a specific case by case_id (owner or admin only)"
 )
 def get_case_by_id(
     case_id: int = Path(..., ge=1),
@@ -180,7 +197,8 @@ def get_case_by_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        case = SQLClinicalService.get_case_by_id(db, case_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        case = SQLClinicalService.get_case_by_id(db, case_id, user_id=user_id)
         if not case:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
         return case
@@ -198,12 +216,18 @@ def get_case_by_id(
     summary="Retrieve all cases for a specific user ID"
 )
 def get_cases_by_user_id(
-    user_id: int = Path(...),
+    user_id: uuid.UUID = Path(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Authorization: users can only view their own cases unless administrator
+    if current_user.id != user_id and current_user.role != UserRole.ADMINISTRATOR.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operation not permitted: insufficient privileges"
+        )
     try:
-        return SQLClinicalService.get_cases_by_user_id(db, user_id)
+        return SQLClinicalService.get_cases_by_user_id(db, str(user_id))
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -213,7 +237,7 @@ def get_cases_by_user_id(
 @router.patch(
     "/cases/{case_id}",
     response_model=CaseResponse,
-    summary="Update case metadata or status"
+    summary="Update case metadata or status (owner or admin only)"
 )
 def update_case(
     case_id: int = Path(..., ge=1),
@@ -222,7 +246,8 @@ def update_case(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        updated = SQLClinicalService.update_case(db, case_id, case_in)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        updated = SQLClinicalService.update_case(db, case_id, case_in, user_id=user_id)
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
         return updated
@@ -241,14 +266,15 @@ def update_case(
 @router.get(
     "/images",
     response_model=List[MedicalImageResponse],
-    summary="[auth_queries.sql Query 6] View all medical images"
+    summary="[auth_queries.sql Query 6] View all medical images (own cases only, admin sees all)"
 )
 def get_sql_medical_images(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_all_medical_images(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_all_medical_images(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -259,7 +285,7 @@ def get_sql_medical_images(
     "/cases/{case_id}/images",
     response_model=MedicalImageResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Insert/register medical image metadata for a case"
+    summary="Insert/register medical image metadata for a case (owner or admin only)"
 )
 def insert_medical_image(
     case_id: int = Path(..., ge=1),
@@ -268,7 +294,8 @@ def insert_medical_image(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.insert_medical_image(db, case_id, image_in)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.insert_medical_image(db, case_id, image_in, user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (OperationalError, ProgrammingError) as e:
@@ -280,7 +307,7 @@ def insert_medical_image(
 @router.get(
     "/images/{image_id}",
     response_model=MedicalImageResponse,
-    summary="Retrieve medical image metadata by image_id"
+    summary="Retrieve medical image metadata by image_id (owner or admin only)"
 )
 def get_image_by_id(
     image_id: int = Path(..., ge=1),
@@ -288,7 +315,8 @@ def get_image_by_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        image = SQLClinicalService.get_image_by_id(db, image_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        image = SQLClinicalService.get_image_by_id(db, image_id, user_id=user_id)
         if not image:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Image with ID {image_id} not found.")
         return image
@@ -303,7 +331,7 @@ def get_image_by_id(
 @router.get(
     "/cases/{case_id}/images",
     response_model=List[MedicalImageResponse],
-    summary="Retrieve all images associated with a case_id"
+    summary="Retrieve all images associated with a case_id (owner or admin only)"
 )
 def get_images_by_case_id(
     case_id: int = Path(..., ge=1),
@@ -311,7 +339,8 @@ def get_images_by_case_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_images_by_case_id(db, case_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_images_by_case_id(db, case_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -321,7 +350,7 @@ def get_images_by_case_id(
 @router.patch(
     "/images/{image_id}",
     response_model=MedicalImageResponse,
-    summary="Update medical image metadata"
+    summary="Update medical image metadata (owner or admin only)"
 )
 def update_image_metadata(
     image_id: int = Path(..., ge=1),
@@ -330,7 +359,8 @@ def update_image_metadata(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        updated = SQLClinicalService.update_image_metadata(db, image_id, image_in)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        updated = SQLClinicalService.update_image_metadata(db, image_id, image_in, user_id=user_id)
         if not updated:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Image with ID {image_id} not found.")
         return updated
@@ -345,7 +375,7 @@ def update_image_metadata(
 @router.delete(
     "/images/{image_id}",
     response_model=MessageActionResponse,
-    summary="Delete medical image metadata when permitted (no dependent results)"
+    summary="Delete medical image metadata when permitted (no dependent results) - owner or admin only"
 )
 def delete_medical_image(
     image_id: int = Path(..., ge=1),
@@ -353,7 +383,8 @@ def delete_medical_image(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        deleted = SQLClinicalService.delete_medical_image(db, image_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        deleted = SQLClinicalService.delete_medical_image(db, image_id, user_id=user_id)
         if not deleted:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Image with ID {image_id} not found.")
         return MessageActionResponse(message="Image deleted successfully", detail=f"Image {image_id} removed.")
@@ -374,14 +405,15 @@ def delete_medical_image(
 @router.get(
     "/segmentation-results",
     response_model=List[SegmentationResultResponse],
-    summary="[auth_queries.sql Query 7] View all segmentation results"
+    summary="[auth_queries.sql Query 7] View all segmentation results (own cases only, admin sees all)"
 )
 def get_sql_segmentation_results(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_all_segmentation_results(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_all_segmentation_results(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -392,7 +424,7 @@ def get_sql_segmentation_results(
     "/images/{image_id}/segmentation-results",
     response_model=SegmentationResultResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Insert segmentation result for an image"
+    summary="Insert segmentation result for an image (owner or admin only)"
 )
 def insert_segmentation_result(
     image_id: int = Path(..., ge=1),
@@ -401,7 +433,8 @@ def insert_segmentation_result(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.insert_segmentation_result(db, image_id, seg_in)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.insert_segmentation_result(db, image_id, seg_in, user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (OperationalError, ProgrammingError) as e:
@@ -413,7 +446,7 @@ def insert_segmentation_result(
 @router.get(
     "/images/{image_id}/segmentation-results",
     response_model=List[SegmentationResultResponse],
-    summary="Retrieve segmentation results for a specific image ID"
+    summary="Retrieve segmentation results for a specific image ID (owner or admin only)"
 )
 def get_segmentations_by_image_id(
     image_id: int = Path(..., ge=1),
@@ -421,7 +454,8 @@ def get_segmentations_by_image_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_segmentations_by_image_id(db, image_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_segmentations_by_image_id(db, image_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -431,7 +465,7 @@ def get_segmentations_by_image_id(
 @router.get(
     "/cases/{case_id}/segmentation-results",
     response_model=List[SegmentationResultResponse],
-    summary="Retrieve all segmentation results associated with a case ID"
+    summary="Retrieve all segmentation results associated with a case ID (owner or admin only)"
 )
 def get_segmentations_by_case_id(
     case_id: int = Path(..., ge=1),
@@ -439,7 +473,8 @@ def get_segmentations_by_case_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_segmentations_by_case_id(db, case_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_segmentations_by_case_id(db, case_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -449,14 +484,15 @@ def get_segmentations_by_case_id(
 @router.get(
     "/segmentation-results/latest",
     response_model=Optional[SegmentationResultResponse],
-    summary="Retrieve the latest segmentation result"
+    summary="Retrieve the latest segmentation result (own results only, admin sees all)"
 )
 def get_latest_segmentation_result(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        result = SQLClinicalService.get_latest_segmentation_result(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        result = SQLClinicalService.get_latest_segmentation_result(db, user_id=user_id)
         if not result:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No segmentation results found.")
         return result
@@ -475,7 +511,7 @@ def get_latest_segmentation_result(
 @router.get(
     "/stenosis-results",
     response_model=List[StenosisResultResponse],
-    summary="[auth_queries.sql Query 8] View all stenosis results (optional ?sort_by=confidence)"
+    summary="[auth_queries.sql Query 8] View all stenosis results (own cases only, admin sees all)"
 )
 def get_sql_stenosis_results(
     sort_by: Optional[str] = Query(None, description="Set to 'confidence' to sort by confidence score descending"),
@@ -483,9 +519,10 @@ def get_sql_stenosis_results(
     current_user: User = Depends(get_current_user)
 ):
     try:
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
         if sort_by == "confidence":
-            return SQLClinicalService.get_stenosis_sorted_by_confidence(db, descending=True)
-        return SQLClinicalService.get_all_stenosis_results(db)
+            return SQLClinicalService.get_stenosis_sorted_by_confidence(db, descending=True, user_id=user_id)
+        return SQLClinicalService.get_all_stenosis_results(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -496,7 +533,7 @@ def get_sql_stenosis_results(
     "/images/{image_id}/stenosis-results",
     response_model=StenosisResultResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Insert stenosis detection result for an image"
+    summary="Insert stenosis detection result for an image (owner or admin only)"
 )
 def insert_stenosis_result(
     image_id: int = Path(..., ge=1),
@@ -505,7 +542,8 @@ def insert_stenosis_result(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.insert_stenosis_result(db, image_id, sten_in)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.insert_stenosis_result(db, image_id, sten_in, user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (OperationalError, ProgrammingError) as e:
@@ -517,7 +555,7 @@ def insert_stenosis_result(
 @router.get(
     "/images/{image_id}/stenosis-results",
     response_model=List[StenosisResultResponse],
-    summary="Retrieve stenosis results for a specific image ID"
+    summary="Retrieve stenosis results for a specific image ID (owner or admin only)"
 )
 def get_stenosis_by_image_id(
     image_id: int = Path(..., ge=1),
@@ -525,7 +563,8 @@ def get_stenosis_by_image_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_stenosis_by_image_id(db, image_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_stenosis_by_image_id(db, image_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -535,7 +574,7 @@ def get_stenosis_by_image_id(
 @router.get(
     "/cases/{case_id}/stenosis-results",
     response_model=List[StenosisResultResponse],
-    summary="Retrieve all stenosis results associated with a case ID"
+    summary="Retrieve all stenosis results associated with a case ID (owner or admin only)"
 )
 def get_stenosis_by_case_id(
     case_id: int = Path(..., ge=1),
@@ -543,7 +582,8 @@ def get_stenosis_by_case_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_stenosis_by_case_id(db, case_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_stenosis_by_case_id(db, case_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -553,7 +593,7 @@ def get_stenosis_by_case_id(
 @router.get(
     "/stenosis-results/filter",
     response_model=List[StenosisResultResponse],
-    summary="Filter stenosis results by severity"
+    summary="Filter stenosis results by severity (own results only, admin sees all)"
 )
 def filter_stenosis_by_severity(
     severity: str = Query(..., min_length=1, description="Severity string, e.g. 'Mild', 'Moderate', 'Severe'"),
@@ -561,7 +601,8 @@ def filter_stenosis_by_severity(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.filter_stenosis_by_severity(db, severity)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.filter_stenosis_by_severity(db, severity, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -571,14 +612,15 @@ def filter_stenosis_by_severity(
 @router.get(
     "/stenosis-results/latest",
     response_model=Optional[StenosisResultResponse],
-    summary="Retrieve the latest stenosis detection result"
+    summary="Retrieve the latest stenosis detection result (own results only, admin sees all)"
 )
 def get_latest_stenosis_result(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        result = SQLClinicalService.get_latest_stenosis_result(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        result = SQLClinicalService.get_latest_stenosis_result(db, user_id=user_id)
         if not result:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No stenosis results found.")
         return result
@@ -597,14 +639,15 @@ def get_latest_stenosis_result(
 @router.get(
     "/analytics/segmentation-count",
     response_model=CountResponse,
-    summary="[result_queries.sql Query 1] Count segmentation results"
+    summary="[result_queries.sql Query 1] Count segmentation results (own results only, admin sees all)"
 )
 def get_segmentation_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        count = SQLClinicalService.get_segmentation_count(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        count = SQLClinicalService.get_segmentation_count(db, user_id=user_id)
         return CountResponse(count=count)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
@@ -615,14 +658,15 @@ def get_segmentation_count(
 @router.get(
     "/analytics/stenosis-count",
     response_model=CountResponse,
-    summary="[result_queries.sql Query 2] Count stenosis results"
+    summary="[result_queries.sql Query 2] Count stenosis results (own results only, admin sees all)"
 )
 def get_stenosis_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        count = SQLClinicalService.get_stenosis_count(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        count = SQLClinicalService.get_stenosis_count(db, user_id=user_id)
         return CountResponse(count=count)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
@@ -633,14 +677,15 @@ def get_stenosis_count(
 @router.get(
     "/analytics/model-performance",
     response_model=List[ModelDiceScore],
-    summary="[result_queries.sql Query 3] Compare segmentation model performance by average Dice score"
+    summary="[result_queries.sql Query 3] Compare segmentation model performance by average Dice score (own results only, admin sees all)"
 )
 def get_model_performance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_model_performance(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_model_performance(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -650,16 +695,17 @@ def get_model_performance(
 @router.get(
     "/analytics/summary",
     response_model=AnalyticsSummaryResponse,
-    summary="[result_queries.sql Combined] Model performance & count analytics"
+    summary="[result_queries.sql Combined] Model performance & count analytics (own results only, admin sees all)"
 )
 def get_sql_analytics_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        seg_count = SQLClinicalService.get_segmentation_count(db)
-        sten_count = SQLClinicalService.get_stenosis_count(db)
-        performance = SQLClinicalService.get_model_performance(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        seg_count = SQLClinicalService.get_segmentation_count(db, user_id=user_id)
+        sten_count = SQLClinicalService.get_stenosis_count(db, user_id=user_id)
+        performance = SQLClinicalService.get_model_performance(db, user_id=user_id)
         return AnalyticsSummaryResponse(
             total_segmentation_results=seg_count,
             total_stenosis_results=sten_count,
@@ -675,14 +721,15 @@ def get_sql_analytics_summary(
 @router.get(
     "/dashboard/analytics",
     response_model=DashboardAnalyticsResponse,
-    summary="Dashboard analytics: users, cases, images, stenosis counts, and recent activity"
+    summary="Dashboard analytics: users, cases, images, stenosis counts, and recent activity (own data only, admin sees all)"
 )
 def get_dashboard_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        return SQLClinicalService.get_dashboard_analytics(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_dashboard_analytics(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -696,7 +743,7 @@ def get_dashboard_analytics(
 @router.get(
     "/analytics/model-performance/detailed",
     response_model=List[DetailedModelPerformanceResponse],
-    summary="[result_queries.sql Query 4] Complete model performance analytics"
+    summary="[result_queries.sql Query 4] Complete model performance analytics (own results only, admin sees all)"
 )
 def get_detailed_model_performance(
     db: Session = Depends(get_db),
@@ -708,7 +755,8 @@ def get_detailed_model_performance(
     precision, recall, and F1-score grouped by model name.
     """
     try:
-        return SQLClinicalService.get_detailed_model_performance(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_detailed_model_performance(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -718,7 +766,7 @@ def get_detailed_model_performance(
 @router.get(
     "/analytics/stenosis-severity-distribution",
     response_model=List[StenosisSeverityDistributionResponse],
-    summary="[result_queries.sql Query 5] Stenosis severity distribution"
+    summary="[result_queries.sql Query 5] Stenosis severity distribution (own results only, admin sees all)"
 )
 def get_stenosis_severity_distribution(
     db: Session = Depends(get_db),
@@ -729,7 +777,8 @@ def get_stenosis_severity_distribution(
     Returns total cases and average confidence score grouped by stenosis severity.
     """
     try:
-        return SQLClinicalService.get_stenosis_severity_distribution(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_stenosis_severity_distribution(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -739,7 +788,7 @@ def get_stenosis_severity_distribution(
 @router.get(
     "/reports/case-analysis",
     response_model=List[CaseAnalysisReportItem],
-    summary="[result_queries.sql Query 6] Case-wise medical image and complete analysis report"
+    summary="[result_queries.sql Query 6] Case-wise medical image and complete analysis report (own cases only, admin sees all)"
 )
 def get_case_analysis_report(
     case_id: Optional[int] = Query(None, description="Optional case_id filter"),
@@ -753,7 +802,8 @@ def get_case_analysis_report(
     Avoids duplicate combinations of multiple segmentation and stenosis results per image.
     """
     try:
-        return SQLClinicalService.get_case_analysis_report(db, case_id=case_id)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_case_analysis_report(db, case_id=case_id, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -763,7 +813,7 @@ def get_case_analysis_report(
 @router.get(
     "/reports/case-summary-counts",
     response_model=List[CaseSummaryCountItem],
-    summary="[result_queries.sql Query 7] Summary counts of images and analysis results per case"
+    summary="[result_queries.sql Query 7] Summary counts of images and analysis results per case (own cases only, admin sees all)"
 )
 def get_case_summary_counts(
     db: Session = Depends(get_db),
@@ -774,7 +824,8 @@ def get_case_summary_counts(
     Aggregates distinct image, segmentation, and stenosis counts grouped by case.
     """
     try:
-        return SQLClinicalService.get_case_summary_counts(db)
+        user_id = None if current_user.role == UserRole.ADMINISTRATOR.value else current_user.id
+        return SQLClinicalService.get_case_summary_counts(db, user_id=user_id)
     except (OperationalError, ProgrammingError) as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

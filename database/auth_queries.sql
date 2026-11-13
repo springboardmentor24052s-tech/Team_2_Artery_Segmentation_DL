@@ -7,19 +7,19 @@ SELECT EXISTS (
 ) AS email_exists;
 
 -- 2. Retrieve a user for login verification
-SELECT user_id, full_name, email, password_hash
+SELECT id, name, email, password_hash
 FROM users
 WHERE email = 'test@example.com';
 
 -- 3. View registered users (without password hashes)
-SELECT user_id, full_name, email, created_at
+SELECT id, name, email, created_at
 FROM users
-ORDER BY user_id;
+ORDER BY id;
 
 -- 4. Update a user's name
 UPDATE users
-SET full_name = 'Updated Name'
-WHERE user_id = 1;
+SET name = :full_name
+WHERE id = :user_id;
 
 -- 5. View all cases
 SELECT
