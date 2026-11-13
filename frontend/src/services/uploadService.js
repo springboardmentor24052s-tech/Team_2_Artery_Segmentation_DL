@@ -7,7 +7,7 @@
  *
  * Real mode:
  *   Uploads the image, runs the selected segmentation model,
- *   and persists the inference result through the backend.
+ *   persists the inference result, and retrieves saved files.
  */
 
 import { apiClient, IS_MOCK_MODE } from './api';
@@ -25,14 +25,35 @@ const SUPPORTED_IMAGE_TYPES = new Set([
   'image/bmp',
 ]);
 
+const validatePositiveId = (value, label) => {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error(`A valid ${label} is required.`);
+  }
+
+  return id;
+};
+
+const ensureRealMode = () => {
+  if (IS_MOCK_MODE) {
+    throw new Error(
+      'This operation requires real backend mode. Disable mock mode first.'
+    );
+  }
+};
+
 export const uploadService = {
+  // ---------------------------------------------------------
+  // UPLOAD SCAN AND RUN SEGMENTATION INFERENCE
+  // ---------------------------------------------------------
   async uploadScan(
     caseId,
     file,
     modelType = 'unet',
     onProgress = () => {}
   ) {
-    // Backward compatibility with callers that pass the callback
+    // Backward compatibility with callers passing callback
     // as the third argument.
     if (typeof modelType === 'function') {
       onProgress = modelType;
@@ -47,9 +68,9 @@ export const uploadService = {
       throw new Error('Please select a supported segmentation model.');
     }
 
-    // ---------------------------------------------------------
+    // -------------------------------------------------------
     // MOCK MODE
-    // ---------------------------------------------------------
+    // -------------------------------------------------------
     if (IS_MOCK_MODE) {
       try {
         await saveScanAsset(caseId, file);
@@ -95,24 +116,18 @@ export const uploadService = {
       };
     }
 
-    // ---------------------------------------------------------
+    // -------------------------------------------------------
     // REAL BACKEND MODE
-    // ---------------------------------------------------------
-
+    // -------------------------------------------------------
     if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
       throw new Error(
         'Unsupported image format. Real inference currently accepts PNG, JPG, JPEG, TIFF and BMP images. DICOM is not supported by this endpoint.'
       );
     }
 
-    const numericCaseId = Number(caseId);
-
-    if (!Number.isInteger(numericCaseId) || numericCaseId < 1) {
-      throw new Error('A valid backend case ID is required.');
-    }
+    const numericCaseId = validatePositiveId(caseId, 'backend case ID');
 
     const formData = new FormData();
-
     formData.append('file', file);
     formData.append('case_id', String(numericCaseId));
     formData.append('model_type', modelType);
@@ -139,11 +154,7 @@ export const uploadService = {
 
     const result = response.data;
 
-    if (
-      !result ||
-      !result.segmentation_id ||
-      !result.image_id
-    ) {
+    if (!result?.segmentation_id || !result?.image_id) {
       throw new Error(
         'The backend response did not contain a valid segmentation result.'
       );
@@ -163,7 +174,6 @@ export const uploadService = {
       caseId: String(result.case_id),
       file: fileData,
 
-      // Persisted backend identifiers and measurements.
       imageId: result.image_id,
       segmentationId: result.segmentation_id,
       modelName: result.model_name,
@@ -173,17 +183,19 @@ export const uploadService = {
       segmentedPixels: result.segmented_pixels,
       vesselAreaRatio: result.vessel_area_ratio,
 
-      // Base64-encoded PNG image data from the backend.
       maskBase64: result.mask_base64,
       overlayBase64: result.overlay_base64,
 
-      // Keep the original backend response available.
       inference: result,
 
-      message: 'Image uploaded and segmentation inference completed successfully.',
+      message:
+        'Image uploaded and segmentation inference completed successfully.',
     };
   },
 
+  // ---------------------------------------------------------
+  // PREPROCESSING STATUS
+  // ---------------------------------------------------------
   async getPreprocessingStatus(caseId) {
     if (IS_MOCK_MODE) {
       const targetCase = await caseService.getCaseById(caseId);
@@ -201,6 +213,9 @@ export const uploadService = {
     );
   },
 
+  // ---------------------------------------------------------
+  // RETRIEVE SEGMENTATION RESULTS FOR A CASE
+  // ---------------------------------------------------------
   async getSegmentationResults(caseId) {
     if (IS_MOCK_MODE) {
       return {
@@ -212,14 +227,73 @@ export const uploadService = {
       };
     }
 
-    const numericCaseId = Number(caseId);
-
-    if (!Number.isInteger(numericCaseId) || numericCaseId < 1) {
-      throw new Error('A valid backend case ID is required.');
-    }
+    const numericCaseId = validatePositiveId(
+      caseId,
+      'backend case ID'
+    );
 
     const response = await apiClient.get(
       `/sql/cases/${numericCaseId}/segmentation-results`
+    );
+
+    return response.data;
+  },
+
+  // ---------------------------------------------------------
+  // DOWNLOAD ORIGINAL IMAGE
+  // ---------------------------------------------------------
+  async getOriginalImage(imageId) {
+    ensureRealMode();
+
+    const id = validatePositiveId(imageId, 'image ID');
+
+    const response = await apiClient.get(
+      `/inference/images/${id}/file`,
+      {
+        responseType: 'blob',
+      }
+    );
+
+    return response.data;
+  },
+
+  // ---------------------------------------------------------
+  // DOWNLOAD SEGMENTATION MASK
+  // ---------------------------------------------------------
+  async getSegmentationMask(segmentationId) {
+    ensureRealMode();
+
+    const id = validatePositiveId(
+      segmentationId,
+      'segmentation ID'
+    );
+
+    const response = await apiClient.get(
+      `/inference/masks/${id}`,
+      {
+        responseType: 'blob',
+      }
+    );
+
+    return response.data;
+  },
+
+  // ---------------------------------------------------------
+  // DOWNLOAD SEGMENTATION OVERLAY
+  // ---------------------------------------------------------
+  async getSegmentationOverlay(segmentationId) {
+    ensureRealMode();
+
+    const id = validatePositiveId(
+      segmentationId,
+      'segmentation ID'
+    );
+
+    const response = await apiClient.get(
+      `/inference/overlays/${id}`,
+      {
+        responseType: 'blob',
+      }
     );
 
     return response.data;
