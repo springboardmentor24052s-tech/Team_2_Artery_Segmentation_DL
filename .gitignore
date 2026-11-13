@@ -1,0 +1,29 @@
+# IDE
+.vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Frontend generated files
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Generated files
+results/
+runs/
+uploads/
+backend/results/
+backend/uploads/
+backend/app/data/
+
+# Model weights
+*.pt
+*.pth
+
+# Backup files
+*.backup
