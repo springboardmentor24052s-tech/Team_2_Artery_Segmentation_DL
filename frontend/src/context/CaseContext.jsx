@@ -1,7 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
+
 import { caseService } from '../services/caseService';
 import { uploadService } from '../services/uploadService';
 import { CASE_STATUS } from '../utils/constants';
+import { IS_MOCK_MODE } from '../services/api';
 
 const CaseContext = createContext(null);
 
@@ -14,6 +24,7 @@ export function CaseProvider({ children }) {
     try {
       setIsLoading(true);
       setError(null);
+
       const data = await caseService.getCases(filters);
       setCases(data);
     } catch (err) {
@@ -29,41 +40,77 @@ export function CaseProvider({ children }) {
 
   const createCase = async (caseData) => {
     const newCase = await caseService.createCase(caseData);
+
     setCases((prev) => [newCase, ...prev]);
+
     return newCase;
   };
 
   const updateCase = async (id, updates) => {
     const updated = await caseService.updateCase(id, updates);
-    setCases((prev) => prev.map((c) => (c.id === id ? updated : c)));
+
+    setCases((prev) =>
+      prev.map((c) => (c.id === id ? updated : c))
+    );
+
     return updated;
   };
 
-  const uploadCaseScan = async (caseId, file, onProgress) => {
-    const result = await uploadService.uploadScan(caseId, file, onProgress);
-    // Refresh cases from storage to stay completely in sync
+  // Upload a scan and run the selected segmentation model.
+  const uploadCaseScan = async (
+    caseId,
+    file,
+    modelType = 'unet',
+    onProgress
+  ) => {
+    const result = await uploadService.uploadScan(
+      caseId,
+      file,
+      modelType,
+      onProgress
+    );
+
+    // Refresh cases after successful upload and inference.
     const freshCases = await caseService.getCases();
     setCases(freshCases);
+
     return result;
   };
 
+  // Reset is available only when using local mock data.
   const resetCases = () => {
+    if (!IS_MOCK_MODE) {
+      throw new Error(
+        'Resetting research cases is only available in mock mode.'
+      );
+    }
+
     const initial = caseService.resetMockData();
     setCases(initial);
   };
 
-  // Derive all statistics strictly from the current mock cases
+  // Derive statistics from the currently loaded cases.
   const stats = useMemo(() => {
     const total = cases.length;
+
     const awaitingProcessing = cases.filter(
       (c) =>
         c.status === CASE_STATUS.CREATED ||
         c.status === CASE_STATUS.AWAITING_UPLOAD ||
         c.status === CASE_STATUS.UPLOADED
     ).length;
-    const processing = cases.filter((c) => c.status === CASE_STATUS.PROCESSING).length;
-    const completed = cases.filter((c) => c.status === CASE_STATUS.COMPLETED).length;
-    const failed = cases.filter((c) => c.status === CASE_STATUS.FAILED).length;
+
+    const processing = cases.filter(
+      (c) => c.status === CASE_STATUS.PROCESSING
+    ).length;
+
+    const completed = cases.filter(
+      (c) => c.status === CASE_STATUS.COMPLETED
+    ).length;
+
+    const failed = cases.filter(
+      (c) => c.status === CASE_STATUS.FAILED
+    ).length;
 
     return {
       total,
@@ -95,8 +142,10 @@ export function CaseProvider({ children }) {
 
 export function useCases() {
   const context = useContext(CaseContext);
+
   if (!context) {
     throw new Error('useCases must be used within a CaseProvider');
   }
+
   return context;
 }
