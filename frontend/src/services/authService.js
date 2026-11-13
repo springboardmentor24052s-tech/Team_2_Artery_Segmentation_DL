@@ -2,8 +2,8 @@
 /**
  * ArteryAI Authentication Service
  *
- * Demo mode is intended only for local development and demonstrations.
- * Production authentication must use a properly secured backend.
+ * Mock mode is for local development and demonstrations.
+ * Real mode uses the FastAPI authentication endpoints.
  */
 
 import { apiClient, IS_MOCK_MODE } from './api';
@@ -14,6 +14,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const USERS_KEY = 'arteryai_demo_accounts';
 const USER_KEY = 'arteryai_user';
 const TOKEN_KEY = 'arteryai_auth_token';
+const REFRESH_TOKEN_KEY = 'arteryai_refresh_token';
 const REMEMBER_KEY = 'arteryai_remember_email';
 
 const normalizeEmail = (email = '') => email.trim().toLowerCase();
@@ -34,18 +35,29 @@ function saveAccounts(accounts) {
   localStorage.setItem(USERS_KEY, JSON.stringify(accounts));
 }
 
-function saveSession(user, token) {
+function saveSession(user, accessToken, refreshToken = null) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, accessToken);
+
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  } else {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
 }
 
 function clearSession() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-// Demo-only hash. Client-side password storage is not secure enough
-// for real accounts; production password handling belongs on the server.
+function publicUser(account) {
+  const { passwordHash, ...user } = account;
+  return user;
+}
+
+// Demo-only password hashing. Real password handling belongs on the server.
 async function hashDemoPassword(password) {
   if (!globalThis.crypto?.subtle) {
     throw new Error(
@@ -61,9 +73,44 @@ async function hashDemoPassword(password) {
     .join('');
 }
 
-function publicUser(account) {
-  const { passwordHash, ...user } = account;
-  return user;
+// Uses the actual backend profile endpoint.
+async function fetchBackendUser() {
+  const response = await apiClient.get('/users/me');
+  return response.data;
+}
+
+// Completes backend login and stores both tokens.
+async function authenticateBackend(email, password) {
+  const response = await apiClient.post('/auth/login', {
+    email,
+    password,
+  });
+
+  const result = response.data;
+
+  if (!result?.access_token || !result?.refresh_token) {
+    throw new Error(
+      'The authentication server returned an invalid token response.'
+    );
+  }
+
+  // Save access token before requesting the protected profile endpoint.
+  localStorage.setItem(TOKEN_KEY, result.access_token);
+  localStorage.setItem(REFRESH_TOKEN_KEY, result.refresh_token);
+
+  try {
+    const user = await fetchBackendUser();
+
+    saveSession(user, result.access_token, result.refresh_token);
+
+    return {
+      user,
+      token: result.access_token,
+    };
+  } catch (error) {
+    clearSession();
+    throw error;
+  }
 }
 
 export const authService = {
@@ -104,7 +151,6 @@ export const authService = {
         normalizedEmail === normalizeEmail(MOCK_USER.email) &&
         password === 'Demo@123'
       ) {
-        // Optional fixed demo account for demonstrations only.
         user = { ...MOCK_USER };
       } else {
         throw new Error(
@@ -124,18 +170,10 @@ export const authService = {
       return { user, token };
     }
 
-    const response = await apiClient.post('/auth/login', {
-      email: normalizedEmail,
-      password,
-    });
-
-    const result = response.data;
-
-    if (!result?.user || !result?.token) {
-      throw new Error('The authentication server returned an invalid response.');
-    }
-
-    saveSession(result.user, result.token);
+    const result = await authenticateBackend(
+      normalizedEmail,
+      password
+    );
 
     if (rememberMe) {
       localStorage.setItem(REMEMBER_KEY, normalizedEmail);
@@ -205,20 +243,16 @@ export const authService = {
       return { user, token };
     }
 
-    const response = await apiClient.post('/auth/register', {
-      fullName: name,
+    // Backend accepts name, email and password.
+    // Institution is currently a frontend-only field.
+    await apiClient.post('/auth/register', {
+      name,
       email: normalizedEmail,
-      institution: organization,
       password,
     });
 
-    const result = response.data;
-
-    if (result?.user && result?.token) {
-      saveSession(result.user, result.token);
-    }
-
-    return result;
+    // Registration does not return tokens, so sign in separately.
+    return authenticateBackend(normalizedEmail, password);
   },
 
   async getCurrentUser() {
@@ -239,9 +273,19 @@ export const authService = {
       }
     }
 
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      clearSession();
+      return null;
+    }
+
     try {
-      const response = await apiClient.get('/auth/me');
-      return response.data?.user ?? null;
+      const user = await fetchBackendUser();
+
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+      return user;
     } catch (error) {
       clearSession();
       throw error;
@@ -266,17 +310,21 @@ export const authService = {
       };
     }
 
-    const response = await apiClient.post('/auth/forgot-password', {
-      email: normalizedEmail,
-    });
-
-    return response.data;
+    throw new Error(
+      'Password reset is not yet available. Please contact your administrator.'
+    );
   },
 
   async logout() {
     try {
       if (!IS_MOCK_MODE) {
-        await apiClient.post('/auth/logout');
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+        if (refreshToken) {
+          await apiClient.post('/auth/logout', {
+            refresh_token: refreshToken,
+          });
+        }
       }
     } finally {
       clearSession();
