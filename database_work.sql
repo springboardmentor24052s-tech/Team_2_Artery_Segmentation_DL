@@ -63,7 +63,7 @@ CREATE TABLE segmentation_results (
     created_at TIMESTAMP WITHOUT TIME ZONE NULL,
     overlay_path TEXT NULL
 );
-\CREATE TABLE stenosis_results (
+CREATE TABLE stenosis_results (
     stenosis_id SERIAL PRIMARY KEY,
     image_id INTEGER NULL REFERENCES medical_images (image_id),
     location TEXT NULL,
@@ -72,3 +72,15 @@ CREATE TABLE segmentation_results (
     estimated_diameter NUMERIC(10,4) NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE NULL
 );
+
+CREATE TABLE IF NOT EXISTS explainability_results (
+    explanation_id SERIAL PRIMARY KEY,
+    image_id INTEGER REFERENCES medical_images(image_id),
+    stenosis_id INTEGER REFERENCES stenosis_results(stenosis_id),
+    method VARCHAR(100),
+    heatmap_path TEXT,
+    overlay_path TEXT,
+    model_name VARCHAR(100),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
