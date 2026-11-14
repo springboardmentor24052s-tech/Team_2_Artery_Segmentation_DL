@@ -72,7 +72,12 @@ CREATE TABLE stenosis_results (
     estimated_diameter NUMERIC(10,4) NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE NULL
 );
+-- ==========================================
+-- EXPLAINABLE AI RESULTS
+-- ==========================================
 
+-- Create Explainable AI results table
+-- Stores Grad-CAM heatmap and explanation details.
 CREATE TABLE IF NOT EXISTS explainability_results (
     explanation_id SERIAL PRIMARY KEY,
     image_id INTEGER REFERENCES medical_images(image_id),
@@ -84,3 +89,17 @@ CREATE TABLE IF NOT EXISTS explainability_results (
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ==========================================
+-- STENOSIS VISUALIZATION
+-- ==========================================
+
+-- Add column to store stenosis visualization image path.
+
+ALTER TABLE stenosis_results
+ADD COLUMN IF NOT EXISTS visualization_path TEXT;
+
+
+-- Add column to store annotated angiography image path.
+
+ALTER TABLE stenosis_results
+ADD COLUMN IF NOT EXISTS annotated_image_path TEXT;
