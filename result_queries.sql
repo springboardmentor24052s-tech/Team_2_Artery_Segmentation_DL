@@ -436,3 +436,153 @@ ORDER BY analysis_date DESC
 LIMIT 10;
 
 
+-- ==========================================
+-- EXPLAINABLE AI RESULTS
+-- ==========================================
+
+-- 29. Display all columns in explainability_results.
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'explainability_results'
+ORDER BY ordinal_position;
+
+
+-- 30. Insert an Explainable AI result (for example, Grad-CAM).
+-- Insert only when the image and stenosis result belong to
+
+
+INSERT INTO explainability_results (
+    image_id,
+    stenosis_id,
+    method,
+    heatmap_path,
+    overlay_path,
+    model_name
+)
+SELECT
+    m.image_id,
+    st.stenosis_id,
+    :method,
+    :heatmap_path,
+    :overlay_path,
+    :model_name
+FROM medical_images AS m
+JOIN cases AS c ON m.case_id = c.case_id
+JOIN stenosis_results AS st
+    ON st.image_id = m.image_id
+WHERE m.image_id = :image_id
+  AND st.stenosis_id = :stenosis_id
+  AND c.user_id = :user_id
+RETURNING explanation_id, image_id, stenosis_id, method,
+          heatmap_path, overlay_path, model_name, created_at;
+
+
+-- 31. Retrieve Explainable AI results for one image
+
+
+SELECT
+    e.explanation_id,
+    e.image_id,
+    e.stenosis_id,
+    e.method,
+    e.heatmap_path,
+    e.overlay_path,
+    e.model_name,
+    e.created_at
+FROM explainability_results AS e
+JOIN medical_images AS m ON e.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE e.image_id = :image_id
+  AND c.user_id = :user_id
+ORDER BY e.created_at DESC, e.explanation_id DESC;
+
+
+-- 32. Retrieve Explainable AI results with medical image
+-- and stenosis details for the authenticated user.
+
+SELECT
+    e.explanation_id,
+    m.image_name,
+    st.severity,
+    st.location,
+    e.method,
+    e.heatmap_path,
+    e.overlay_path,
+    e.model_name,
+    e.created_at
+FROM explainability_results AS e
+JOIN medical_images AS m ON e.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+LEFT JOIN stenosis_results AS st
+    ON e.stenosis_id = st.stenosis_id
+WHERE c.user_id = :user_id
+ORDER BY e.created_at DESC, e.explanation_id DESC;
+
+
+-- ==========================================
+-- STENOSIS VISUALIZATION
+-- ==========================================
+
+-- 33. Display existing columns in stenosis_results.
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'stenosis_results'
+ORDER BY ordinal_position;
+
+
+-- 34. Update stenosis visualization paths for a result
+
+
+UPDATE stenosis_results AS st
+SET visualization_path = :visualization_path,
+    annotated_image_path = :annotated_image_path
+FROM medical_images AS m
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE st.image_id = m.image_id
+  AND st.stenosis_id = :stenosis_id
+  AND c.user_id = :user_id
+RETURNING
+    st.stenosis_id,
+    st.image_id,
+    st.severity,
+    st.visualization_path,
+    st.annotated_image_path;
+
+
+-- 35. Retrieve stenosis visualization details for one image
+-- belonging to the authenticated user.
+
+SELECT
+    st.stenosis_id,
+    st.image_id,
+    st.location,
+    st.severity,
+    st.visualization_path,
+    st.annotated_image_path,
+    st.created_at
+FROM stenosis_results AS st
+JOIN medical_images AS m ON st.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE st.image_id = :image_id
+  AND c.user_id = :user_id
+ORDER BY st.stenosis_id;
+
+
+-- 36. Retrieve all Explainable AI results visible to the user.
+
+SELECT
+    e.explanation_id,
+    e.image_id,
+    e.stenosis_id,
+    e.method,
+    e.heatmap_path,
+    e.overlay_path,
+    e.model_name,
+    e.created_at
+FROM explainability_results AS e
+JOIN medical_images AS m ON e.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE c.user_id = :user_id
+ORDER BY e.created_at DESC, e.explanation_id DESC;
