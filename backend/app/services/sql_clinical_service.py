@@ -260,30 +260,28 @@ class SQLClinicalService:
     def create_case(db: Session, case_in: CaseCreateRequest, user_id) -> Dict[str, Any]:
         """
         Inserts a new clinical case into cases table.
+        Uses RETURNING clause per database_work.sql Query 10.
         user_id is derived from the authenticated user, not from the request body.
         """
         sql = text("""
-            INSERT INTO cases (user_id, case_name, imaging_modality, target_vessel, status)
-            VALUES (:user_id, :case_name, :imaging_modality, :target_vessel, :status);
+            INSERT INTO cases (
+                user_id, case_name, imaging_modality, target_vessel, status
+            )
+            VALUES (
+                :user_id, :case_name, :imaging_modality, :target_vessel,
+                COALESCE(:status, 'pending')
+            )
+            RETURNING case_id, user_id, case_name, imaging_modality,
+                      target_vessel, status, created_at;
         """)
-        db.execute(sql, {
+        row = db.execute(sql, {
             "user_id": user_id,
             "case_name": case_in.case_name.strip(),
             "imaging_modality": case_in.imaging_modality,
             "target_vessel": case_in.target_vessel,
-            "status": case_in.status or "pending"
-        })
+            "status": case_in.status
+        }).fetchone()
         db.commit()
-
-        # Retrieve newly inserted row (using max case_id or exact lookup)
-        fetch_sql = text("""
-            SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
-            FROM cases
-            WHERE case_name = :case_name
-            ORDER BY case_id DESC
-            LIMIT 1;
-        """)
-        row = db.execute(fetch_sql, {"case_name": case_in.case_name.strip()}).fetchone()
         return dict(row._mapping)
 
     @staticmethod
@@ -304,55 +302,62 @@ class SQLClinicalService:
         return dict(row._mapping)
 
     @staticmethod
-    def get_cases_by_user_id(db: Session, user_id: Any) -> List[Dict[str, Any]]:
+    def get_cases_by_user_id(db: Session, user_id: Optional[uuid.UUID] = None) -> List[Dict[str, Any]]:
         """
-        Retrieves cases created by a specific user_id.
+        Executes Query 9 from database_work.sql:
+        Retrieve cases for one specific user (UUID).
+        Orders by created_at DESC, case_id DESC per database_work.sql.
         """
         sql = text("""
-            SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
+            SELECT
+                case_id,
+                user_id,
+                case_name,
+                imaging_modality,
+                target_vessel,
+                status,
+                created_at
             FROM cases
             WHERE user_id = :user_id
-            ORDER BY case_id;
+            ORDER BY created_at DESC, case_id DESC;
         """)
-        result = db.execute(sql, {"user_id": user_id})
+        result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
     def update_case(db: Session, case_id: int, case_in: CaseUpdateRequest, user_id: Optional[uuid.UUID] = None) -> Optional[Dict[str, Any]]:
         """
-        Updates case details dynamically using parameterized SQL.
+        Updates case details using COALESCE pattern per database_work.sql Query 11.
         Regular users can only update their own cases; administrators can update any.
         """
+        # First verify ownership
         current = SQLClinicalService.get_case_by_id(db, case_id, user_id=user_id)
         if not current:
             return None
 
-        update_clauses = []
-        params: Dict[str, Any] = {"case_id": case_id}
-
-        if case_in.case_name is not None:
-            update_clauses.append("case_name = :case_name")
-            params["case_name"] = case_in.case_name.strip()
-        if case_in.imaging_modality is not None:
-            update_clauses.append("imaging_modality = :imaging_modality")
-            params["imaging_modality"] = case_in.imaging_modality.strip()
-        if case_in.target_vessel is not None:
-            update_clauses.append("target_vessel = :target_vessel")
-            params["target_vessel"] = case_in.target_vessel.strip()
-        if case_in.status is not None:
-            update_clauses.append("status = :status")
-            params["status"] = case_in.status.strip()
-
-        if update_clauses:
-            sql = text(f"""
-                UPDATE cases
-                SET {', '.join(update_clauses)}
-                WHERE case_id = :case_id;
-            """)
-            db.execute(sql, params)
-            db.commit()
-
-        return SQLClinicalService.get_case_by_id(db, case_id, user_id=user_id)
+        sql = text("""
+            UPDATE cases
+            SET case_name = COALESCE(:case_name, case_name),
+                imaging_modality = COALESCE(:imaging_modality, imaging_modality),
+                target_vessel = COALESCE(:target_vessel, target_vessel),
+                status = COALESCE(:status, status)
+            WHERE case_id = :case_id
+              AND user_id = :user_id
+            RETURNING case_id, user_id, case_name, imaging_modality,
+                      target_vessel, status, created_at;
+        """)
+        row = db.execute(sql, {
+            "case_id": case_id,
+            "user_id": user_id,
+            "case_name": case_in.case_name,
+            "imaging_modality": case_in.imaging_modality,
+            "target_vessel": case_in.target_vessel,
+            "status": case_in.status
+        }).fetchone()
+        db.commit()
+        if row:
+            return dict(row._mapping)
+        return None
 
     # --- Medical Image Management ---
 
@@ -361,35 +366,30 @@ class SQLClinicalService:
         """
         Registers uploaded image metadata against a case.
         Regular users can only register images for their own cases.
+        Uses RETURNING clause per database_work.sql Query 13.
         """
         case = SQLClinicalService.get_case_by_id(db, case_id, user_id=user_id)
         if not case:
             raise ValueError(f"Case with ID {case_id} not found or access denied.")
 
         sql = text("""
-            INSERT INTO medical_images (case_id, image_name, image_path, image_format, image_size)
-            VALUES (:case_id, :image_name, :image_path, :image_format, :image_size);
+            INSERT INTO medical_images (
+                case_id, image_name, image_path, image_format, image_size
+            )
+            VALUES (
+                :case_id, :image_name, :image_path, :image_format, :image_size
+            )
+            RETURNING image_id, case_id, image_name, image_path,
+                      image_format, image_size, uploaded_at;
         """)
-        db.execute(sql, {
+        row = db.execute(sql, {
             "case_id": case_id,
             "image_name": image_in.image_name.strip(),
             "image_path": image_in.image_path.strip(),
             "image_format": image_in.image_format,
             "image_size": image_in.image_size
-        })
-        db.commit()
-
-        fetch_sql = text("""
-            SELECT image_id, case_id, image_name, image_path, image_format, image_size, uploaded_at
-            FROM medical_images
-            WHERE case_id = :case_id AND image_name = :image_name
-            ORDER BY image_id DESC
-            LIMIT 1;
-        """)
-        row = db.execute(fetch_sql, {
-            "case_id": case_id,
-            "image_name": image_in.image_name.strip()
         }).fetchone()
+        db.commit()
         return dict(row._mapping)
 
     @staticmethod
@@ -415,6 +415,7 @@ class SQLClinicalService:
         """
         Retrieves images associated with a case_id.
         Regular users can only retrieve images from their own cases.
+        Orders by uploaded_at DESC, image_id DESC per database_work.sql Query 13.
         """
         case = SQLClinicalService.get_case_by_id(db, case_id, user_id=user_id)
         if not case:
@@ -424,7 +425,7 @@ class SQLClinicalService:
             SELECT image_id, case_id, image_name, image_path, image_format, image_size, uploaded_at
             FROM medical_images
             WHERE case_id = :case_id
-            ORDER BY image_id;
+            ORDER BY uploaded_at DESC, image_id DESC;
         """)
         result = db.execute(sql, {"case_id": case_id})
         return [dict(row._mapping) for row in result.fetchall()]
@@ -471,13 +472,14 @@ class SQLClinicalService:
         """
         Deletes image metadata when permitted (checks for dependent analysis results).
         Regular users can only delete images from their own cases.
+        Uses ownership-verified DELETE per database_work.sql Query 17 pattern.
         """
-        # Verify ownership first
+        # First verify ownership and check for dependent results
         image = SQLClinicalService.get_image_by_id(db, image_id, user_id=user_id)
         if not image:
             return False
 
-        # Relationship retention rule: check if image has associated segmentation or stenosis results
+        # Check for dependent segmentation or stenosis results
         seg_check = text("SELECT COUNT(*) FROM segmentation_results WHERE image_id = :image_id;")
         sten_check = text("SELECT COUNT(*) FROM stenosis_results WHERE image_id = :image_id;")
         seg_count = db.execute(seg_check, {"image_id": image_id}).scalar() or 0
@@ -489,10 +491,20 @@ class SQLClinicalService:
                 f"and {sten_count} stenosis result(s) associated with it."
             )
 
-        sql = text("DELETE FROM medical_images WHERE image_id = :image_id;")
-        result = db.execute(sql, {"image_id": image_id})
+        # Delete with ownership enforcement via JOIN
+        sql = text("""
+            DELETE FROM medical_images
+            WHERE image_id = :image_id
+              AND case_id IN (
+                  SELECT c.case_id FROM cases c WHERE c.user_id = :user_id
+              );
+        """)
+        result = db.execute(sql, {
+            "image_id": image_id,
+            "user_id": str(user_id) if user_id else None
+        }).rowcount
         db.commit()
-        return result.rowcount > 0
+        return result > 0
 
     @staticmethod
     def create_medical_image_record(
