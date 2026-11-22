@@ -4,22 +4,22 @@
 
 The project **Artery Segmentation and Stenosis Detection Using Advanced Deep Learning Techniques** focuses on analyzing coronary angiography images to identify coronary arteries and detect stenosis (narrowing of blood vessels) using deep learning techniques.
 
-The system aims to support medical image analysis by providing artery segmentation, stenosis detection, vessel measurements and visualization of analysis results.
+The system aims to support medical image analysis through artery segmentation, stenosis detection, vessel measurements and visualization of analysis results.
 
 This repository contains the database-related implementation and SQL operations developed as part of the project.
 
 ## 2. My Contribution – Database Development
 
-My primary responsibility in the project is PostgreSQL database design, implementation, query development, database testing and performance analysis.
+My primary responsibility was PostgreSQL database design, SQL query development, database management, dashboard data preparation, automated report database support, security inspection and performance testing.
 
 The database supports storing and managing:
 
 - User registration and authentication information.
-- Patient case details.
-- Medical angiography images and file information.
+- Medical case details.
+- Medical angiography image information.
 - Artery segmentation results.
 - Stenosis detection results.
-- Explainability results.
+- Explainability-related information.
 - Automated report-generation history.
 
 ## 3. Technologies Used
@@ -30,22 +30,23 @@ The database supports storing and managing:
 | SQL | Database operations and query development |
 | pgAdmin | Database administration |
 | psql | Executing and testing SQL queries |
-| Git and GitHub | Version control and collaboration |
+| Git | Version control |
+| GitHub | Code management and collaboration |
 
-## 4. Database Architecture
+## 4. Database Design and Implementation
 
 The project database is named `artery_db`.
 
-The following tables were created and maintained to support the application's database requirements.
+The following seven tables were implemented and maintained.
 
 | Table Name | Description |
 |---|---|
 | users | Stores user registration information |
 | cases | Stores medical case details |
 | medical_images | Stores uploaded image information and file paths |
-| segmentation_results | Stores artery segmentation results and model evaluation metrics |
+| segmentation_results | Stores artery segmentation results and evaluation metrics |
 | stenosis_results | Stores stenosis detection information and severity |
-| explainability_results | Stores explainability-related result information |
+| explainability_results | Stores explainability-related information |
 | report_generation_history | Maintains report-generation history |
 
 ### 4.1 Database Relationships
@@ -55,15 +56,15 @@ The following tables were created and maintained to support the application's da
 - Medical images are associated with segmentation results.
 - Medical images are associated with stenosis detection results.
 - Explainability information is maintained separately.
-- Report-generation history records report-related information.
+- Report-generation history stores information about generated reports.
 
-## 5. Database Query Implementation
+## 5. SQL Query Implementation
 
 SQL queries were developed to perform database operations and retrieve project information.
 
 ### 5.1 Authentication Queries
 
-Implemented database queries for:
+Implemented queries for:
 
 - Checking whether an email already exists.
 - Retrieving user information for login verification.
@@ -94,9 +95,7 @@ Implemented queries for:
 
 ## 6. Dashboard Development – Database Support
 
-SQL views were created to provide aggregated information for the project dashboard.
-
-The following six views were implemented:
+Six SQL views were created to provide aggregated information for the project dashboard.
 
 | View Name | Purpose |
 |---|---|
@@ -111,7 +110,7 @@ These views prepare summarized database information for dashboard integration.
 
 ## 7. Automated Report Generation – Database Support
 
-Database views and a history table were implemented to support automated report generation.
+Database views and a report history table were implemented to support automated report generation.
 
 ### 7.1 Report Views
 
@@ -125,7 +124,7 @@ Database views and a history table were implemented to support automated report 
 
 ### 7.2 Report Generation History
 
-The `report_generation_history` table was created to maintain information about generated reports.
+The `report_generation_history` table was created to maintain report-related information.
 
 It stores:
 
@@ -135,7 +134,7 @@ It stores:
 - Generation status
 - Generated timestamp
 
-The database structure is prepared for backend report-generation integration. Actual PDF, CSV and JSON generation requires backend implementation.
+The database structure is prepared for backend report-generation integration. Actual PDF, CSV and JSON file generation requires backend implementation.
 
 ## 8. Stenosis Detection and Explainability Database Support
 
@@ -143,7 +142,7 @@ During this stage, the database was extended to support stenosis detection and E
 
 ### 8.1 Stenosis Results Table Enhancement
 
-The `stenosis_results` table was enhanced with the following columns:
+The `stenosis_results` table was enhanced with two additional columns:
 
 ```sql
 ALTER TABLE stenosis_results
@@ -172,8 +171,6 @@ A sample record was verified with the following information:
 
 The `explainability_results` table was created to support explainability-related information.
 
-The database also stores references to visualization files.
-
 Example file references:
 
 - `results/stenosis/stenosis_visualization_1.png`
@@ -200,21 +197,23 @@ A total of 10 security checks were implemented and executed.
 | 9 | Table access permissions | Checks table-level access permissions |
 | 10 | Login roles and privileges | Inspects login roles and their privileges |
 
-### 9.1 Important Findings
+### 9.1 Security Testing Findings
 
-- Password encryption setting: `scram-sha-256`.
-- Current database connection: SSL disabled.
-- Row Level Security: Not enabled on the inspected tables.
-- All seven tables were owned by the `postgres` role.
-- Only the `postgres` login role appeared in the login-role check.
+| Security Setting | Observed Result |
+|---|---|
+| Password encryption setting | `scram-sha-256` |
+| Current connection SSL | Disabled |
+| Row Level Security | Not enabled on inspected tables |
+| Table ownership | All seven tables owned by `postgres` |
+| Login roles | Only `postgres` appeared in the login-role check |
 
 These checks provided an overview of the current database security configuration and identified areas requiring further review.
 
-**Note:** These activities represent database security inspection, not complete security hardening. No security configuration changes were made as part of these checks.
+**Note:** These activities represent database security inspection, not complete security hardening. No security configuration changes were made during these checks.
 
 ## 10. Database Performance Testing
 
-Performance testing was performed to inspect database size, existing indexes, record counts, query execution plans and database activity.
+Performance testing was performed to inspect database indexes, table sizes, record counts, query execution plans and database activity.
 
 A total of 12 SQL checks were executed.
 
@@ -223,7 +222,7 @@ A total of 12 SQL checks were executed.
 | No. | Test | Purpose |
 |---|---|---|
 | 1 | Existing index inspection | Identifies existing database indexes |
-| 2 | Table size analysis | Checks the storage size of each table |
+| 2 | Table size analysis | Checks storage size of each table |
 | 3 | Record count analysis | Counts records in project tables |
 | 4 | Case retrieval performance | Tests case retrieval by user ID |
 | 5 | Medical image retrieval | Tests image retrieval by case ID |
@@ -248,20 +247,34 @@ The following execution times were recorded using PostgreSQL `EXPLAIN ANALYZE`.
 | Dashboard summary | 0.196 ms |
 | Dashboard case status | 0.133 ms |
 
-### 10.3 Performance Observations
+### 10.3 Performance Testing Findings
 
 - Eight existing indexes were identified.
 - Seven project tables were inspected.
 - All tested retrieval and dashboard queries executed successfully.
 - No active queries running longer than five minutes were found.
 - One active database connection was observed during connection monitoring.
-- Total database size was approximately 8.36 MB.
+- Total database size was 8,558 kB (approximately 8.36 MB).
 
-The execution results provide a baseline for the current sample dataset. Additional load testing would be required to evaluate performance under larger workloads.
+The execution results provide a performance baseline for the current sample dataset. Additional load and stress testing would be required to evaluate performance under larger workloads.
 
-## 11. Database Testing Summary
+## 11. SQL Files and Implementation Details
 
-The following database-related activities were completed:
+The following SQL files contain the database queries and implementations developed for this project.
+
+| File Name | Description |
+|---|---|
+| [database_work.sql](database_work.sql) | Database creation, table definitions and general database operations |
+| [auth_queries.sql](auth_queries.sql) | User authentication and user-related queries |
+| [result_queries.sql](result_queries.sql) | Segmentation and stenosis result queries |
+| [dashboard_queries.sql](dashboard_queries.sql) | Dashboard SQL views and analytical queries |
+| [automated_reports.sql](automated_reports.sql) | Automated report views and report history table |
+| [security_checks.sql](security_checks.sql) | Database security inspection queries |
+| [performance.sql](performance.sql) | Database performance testing queries |
+
+Each SQL file contains the corresponding database operations and testing queries.
+
+## 12. Database Testing Summary
 
 | Activity | Status |
 |---|---|
@@ -275,26 +288,6 @@ The following database-related activities were completed:
 | Database security inspection | Completed |
 | Database performance testing | Completed |
 
-## 12. Repository Structure
-
-The database-related SQL files are maintained in the GitHub repository.
-
-```text
-Team_2_Artery_Segmentation_DL/
-│
-├── README.md
-├── LICENSE
-│
-└── database/
-    ├── database_work.sql
-    ├── auth_queries.sql
-    ├── result_queries.sql
-    ├── dashboard_queries.sql
-    ├── automated_reports.sql
-    ├── security_checks.sql
-    └── performance_testing.sql
-```
-
 ## 13. Conclusion
 
 The database development work established the PostgreSQL foundation required for the Artery Segmentation and Stenosis Detection project.
@@ -307,6 +300,6 @@ Further integration and application-level testing will help validate the complet
 
 ---
 
+**Database:** artery_db  
 **Database Technology:** PostgreSQL 18  
-**Database Name:** artery_db  
 **Project:** Artery Segmentation and Stenosis Detection Using Advanced Deep Learning Techniques
