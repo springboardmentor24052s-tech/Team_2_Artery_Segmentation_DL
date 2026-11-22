@@ -1,61 +1,154 @@
+-- 1. Check whether an email exists
+SELECT EXISTS (SELECT 1 FROM users WHERE email = :email) AS email_exists;
 
-CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    full_name VARCHAR(100),
-    email VARCHAR(150) UNIQUE,
-    password_hash TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE cases (
-    case_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
-    case_name VARCHAR(150),
-    imaging_modality VARCHAR(50),
-    target_vessel VARCHAR(100),
-    status VARCHAR(30) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- 2. Retrieve a user for login verification
+SELECT id, name, email, password_hash FROM users WHERE email = :email;
 
-CREATE TABLE medical_images (
-    image_id SERIAL PRIMARY KEY,
-    case_id INTEGER REFERENCES cases(case_id),
-    image_name VARCHAR(255),
-    image_path TEXT,
-    image_format VARCHAR(10),
-    image_size BIGINT,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE segmentation_results (
-    segmentation_id SERIAL PRIMARY KEY,
-    image_id INTEGER REFERENCES medical_images(image_id),
-    mask_path TEXT,
-    model_name VARCHAR(100),
-    dice_score NUMERIC(6,5),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- 3. List registered users
+SELECT id, name, email, created_at FROM users ORDER BY id;
 
-CREATE TABLE stenosis_results (
-    stenosis_id SERIAL PRIMARY KEY,
-    image_id INTEGER REFERENCES medical_images(image_id),
-    location TEXT,
-    severity VARCHAR(30),
-    confidence_score NUMERIC(6,5),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
--- Add missing segmentation evaluation columns
-ALTER TABLE segmentation_results
-ADD COLUMN IF NOT EXISTS iou_score NUMERIC(6,5),
-ADD COLUMN IF NOT EXISTS processed_mask_path TEXT,
-ADD COLUMN IF NOT EXISTS centerline_path TEXT,
-ADD COLUMN IF NOT EXISTS model_version VARCHAR(50),
-ADD COLUMN IF NOT EXISTS precision_score NUMERIC(6,5),
-ADD COLUMN IF NOT EXISTS recall_score NUMERIC(6,5),
-ADD COLUMN IF NOT EXISTS f1_score NUMERIC(6,5),
-ADD COLUMN IF NOT EXISTS mean_vessel_diameter NUMERIC(10,4);
+-- 4. Update a user's name
+UPDATE users SET name = :full_name WHERE id = :user_id;
 
--- Add vessel measurement column
-ALTER TABLE stenosis_results
-ADD COLUMN IF NOT EXISTS estimated_diameter NUMERIC(10,4);
+
+-- 5. List cases with ownership filtering
+SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
+FROM cases
+WHERE (:user_id IS NULL OR user_id = :user_id)
+ORDER BY case_id;
+
+
+-- 6. List medical images with ownership filtering
+SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
+FROM medical_images AS m
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE (:user_id IS NULL OR c.user_id = :user_id)
+ORDER BY m.image_id;
+
+
+-- 7. List segmentation results with ownership filtering
+SELECT s.*
+FROM segmentation_results AS s
+JOIN medical_images AS m ON s.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE (:user_id IS NULL OR c.user_id = :user_id)
+ORDER BY s.segmentation_id;
+
+
+-- 8. List stenosis results with ownership filtering
+SELECT st.*
+FROM stenosis_results AS st
+JOIN medical_images AS m ON st.image_id = m.image_id
+JOIN cases AS c ON m.case_id = c.case_id
+WHERE (:user_id IS NULL OR c.user_id = :user_id)
+ORDER BY st.stenosis_id;
+
+-- 9. Retrieve cases for one specific user (UUID).
+SELECT case_id, user_id, case_name, imaging_modality,
+       target_vessel, status, created_at
+FROM cases
+WHERE user_id = :user_id
+ORDER BY created_at DESC, case_id DESC;
+
+-- 10. Insert a case for the authenticated user.
+INSERT INTO cases (
+    user_id, case_name, imaging_modality, target_vessel, status
+)
+VALUES (
+    :user_id, :case_name, :imaging_modality, :target_vessel,
+    COALESCE(:status, 'pending')
+)
+RETURNING case_id, user_id, case_name, imaging_modality,
+          target_vessel, status, created_at;
+
+-- 11. Update a case only when it belongs to the authenticated user.
+
+UPDATE cases
+SET case_name = COALESCE(:case_name, case_name),
+    imaging_modality = COALESCE(:imaging_modality, imaging_modality),
+    target_vessel = COALESCE(:target_vessel, target_vessel),
+    status = COALESCE(:status, status)
+WHERE case_id = :case_id
+  AND user_id = :user_id
+RETURNING case_id, user_id, case_name, imaging_modality,
+          target_vessel, status, created_at;
+
+-- 12. Retrieve one case with ownership enforcement.
+SELECT case_id, user_id, case_name, imaging_modality,
+       target_vessel, status, created_at
+FROM cases
+WHERE case_id = :case_id
+  AND user_id = :user_id;
+
+-- 13. Retrieve images for a case owned by the authenticated user.
+SELECT m.image_id, m.case_id, m.image_name, m.image_path,
+       m.image_format, m.image_size, m.uploaded_at
+FROM medical_images AS m
+JOIN cases AS c ON c.case_id = m.case_id
+WHERE m.case_id = :case_id
+  AND c.user_id = :user_id
+ORDER BY m.uploaded_at DESC, m.image_id DESC;
+
+-- 14. Retrieve one image with ownership enforcement.
+SELECT m.image_id, m.case_id, m.image_name, m.image_path,
+       m.image_format, m.image_size, m.uploaded_at
+FROM medical_images AS m
+JOIN cases AS c ON c.case_id = m.case_id
+WHERE m.image_id = :image_id
+  AND c.user_id = :user_id;
+
+-- 15. Update image metadata only for an image owned by the user.
+UPDATE medical_images AS m
+SET image_name = COALESCE(:image_name, m.image_name),
+    image_path = COALESCE(:image_path, m.image_path),
+    image_format = COALESCE(:image_format, m.image_format),
+    image_size = COALESCE(:image_size, m.image_size)
+FROM cases AS c
+WHERE m.case_id = c.case_id
+  AND m.image_id = :image_id
+  AND c.user_id = :user_id
+RETURNING m.image_id, m.case_id, m.image_name, m.image_path,
+          m.image_format, m.image_size, m.uploaded_at;
+
+-- 16. Check whether an image has dependent analysis results before deletion.
+SELECT
+    m.image_id,
+    EXISTS (
+        SELECT 1 FROM segmentation_results AS s
+        WHERE s.image_id = m.image_id
+    ) AS has_segmentation_results,
+    EXISTS (
+        SELECT 1 FROM stenosis_results AS st
+        WHERE st.image_id = m.image_id
+    ) AS has_stenosis_results
+FROM medical_images AS m
+JOIN cases AS c ON c.case_id = m.case_id
+WHERE m.image_id = :image_id
+  AND c.user_id = :user_id;
+
+-- 17. Delete an image only if it belongs to the user and has no dependent
+DELETE FROM medical_images AS m
+USING cases AS c
+WHERE m.case_id = c.case_id
+  AND m.image_id = :image_id
+  AND c.user_id = :user_id
+  AND NOT EXISTS (
+      SELECT 1 FROM segmentation_results AS s
+      WHERE s.image_id = m.image_id
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM stenosis_results AS st
+      WHERE st.image_id = m.image_id
+  )
+RETURNING m.image_id;
+
+-- 18. Verify an image record (ownership-scoped).
+SELECT m.image_id, m.case_id, m.image_name, m.image_path,
+       m.image_format, m.image_size, m.uploaded_at
+FROM medical_images AS m
+JOIN cases AS c ON c.case_id = m.case_id
+WHERE m.image_id = :image_id
+  AND c.user_id = :user_id;
