@@ -108,20 +108,35 @@ class SQLClinicalService:
 
         Regular users see only their own cases; administrators see all.
         """
-        sql = text("""
-            SELECT
-                case_id,
-                user_id,
-                case_name,
-                imaging_modality,
-                target_vessel,
-                status,
-                created_at
-            FROM cases
-            WHERE (:user_id IS NULL OR user_id = :user_id)
-            ORDER BY case_id;
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT
+                    case_id,
+                    user_id,
+                    case_name,
+                    imaging_modality,
+                    target_vessel,
+                    status,
+                    created_at
+                FROM cases
+                ORDER BY case_id;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT
+                    case_id,
+                    user_id,
+                    case_name,
+                    imaging_modality,
+                    target_vessel,
+                    status,
+                    created_at
+                FROM cases
+                WHERE user_id = :user_id
+                ORDER BY case_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
@@ -132,14 +147,23 @@ class SQLClinicalService:
 
         Regular users see only images from their own cases; administrators see all.
         """
-        sql = text("""
-            SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
-            FROM medical_images m
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY m.image_id;
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
+                FROM medical_images m
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY m.image_id;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
+                FROM medical_images m
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY m.image_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
@@ -150,15 +174,25 @@ class SQLClinicalService:
 
         Regular users see only results from their own images/cases; administrators see all.
         """
-        sql = text("""
-            SELECT s.*
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY s.segmentation_id;
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY s.segmentation_id;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY s.segmentation_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
@@ -169,15 +203,25 @@ class SQLClinicalService:
 
         Regular users see only results from their own images/cases; administrators see all.
         """
-        sql = text("""
-            SELECT st.*
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY st.stenosis_id;
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY st.stenosis_id;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY st.stenosis_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     # --- result_queries.sql Queries ---
@@ -190,14 +234,23 @@ class SQLClinicalService:
 
         Regular users see only counts for their own results; administrators see all.
         """
-        sql = text("""
-            SELECT COUNT(*) AS total_segmentation_results
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id);
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None}).scalar()
+        if user_id is None:
+            sql = text("""
+                SELECT COUNT(*) AS total_segmentation_results
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id;
+            """)
+            result = db.execute(sql).scalar()
+        else:
+            sql = text("""
+                SELECT COUNT(*) AS total_segmentation_results
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)}).scalar()
         return int(result or 0)
 
     @staticmethod
@@ -208,14 +261,23 @@ class SQLClinicalService:
 
         Regular users see only counts for their own results; administrators see all.
         """
-        sql = text("""
-            SELECT COUNT(*) AS total_stenosis_results
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id);
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None}).scalar()
+        if user_id is None:
+            sql = text("""
+                SELECT COUNT(*) AS total_stenosis_results
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id;
+            """)
+            result = db.execute(sql).scalar()
+        else:
+            sql = text("""
+                SELECT COUNT(*) AS total_stenosis_results
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)}).scalar()
         return int(result or 0)
 
     @staticmethod
@@ -229,18 +291,31 @@ class SQLClinicalService:
 
         Regular users see only their own results; administrators see all.
         """
-        sql = text("""
-            SELECT
-                s.model_name,
-                AVG(s.dice_score) AS average_dice_score
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            GROUP BY s.model_name
-            ORDER BY average_dice_score DESC NULLS LAST;
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT
+                    s.model_name,
+                    AVG(s.dice_score) AS average_dice_score
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                GROUP BY s.model_name
+                ORDER BY average_dice_score DESC NULLS LAST;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT
+                    s.model_name,
+                    AVG(s.dice_score) AS average_dice_score
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                GROUP BY s.model_name
+                ORDER BY average_dice_score DESC NULLS LAST;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         output = []
         for row in result.fetchall():
             m = row._mapping
@@ -290,13 +365,21 @@ class SQLClinicalService:
         Retrieves a single case by case_id.
         Regular users can only retrieve their own cases; administrators can retrieve any.
         """
-        sql = text("""
-            SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
-            FROM cases
-            WHERE case_id = :case_id
-            AND (:user_id IS NULL OR user_id = :user_id);
-        """)
-        row = db.execute(sql, {"case_id": case_id, "user_id": str(user_id) if user_id else None}).fetchone()
+        if user_id is None:
+            sql = text("""
+                SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
+                FROM cases
+                WHERE case_id = :case_id;
+            """)
+            row = db.execute(sql, {"case_id": case_id}).fetchone()
+        else:
+            sql = text("""
+                SELECT case_id, user_id, case_name, imaging_modality, target_vessel, status, created_at
+                FROM cases
+                WHERE case_id = :case_id
+                  AND user_id = :user_id;
+            """)
+            row = db.execute(sql, {"case_id": case_id, "user_id": str(user_id)}).fetchone()
         if not row:
             return None
         return dict(row._mapping)
@@ -335,25 +418,44 @@ class SQLClinicalService:
         if not current:
             return None
 
-        sql = text("""
-            UPDATE cases
-            SET case_name = COALESCE(:case_name, case_name),
-                imaging_modality = COALESCE(:imaging_modality, imaging_modality),
-                target_vessel = COALESCE(:target_vessel, target_vessel),
-                status = COALESCE(:status, status)
-            WHERE case_id = :case_id
-              AND user_id = :user_id
-            RETURNING case_id, user_id, case_name, imaging_modality,
-                      target_vessel, status, created_at;
-        """)
-        row = db.execute(sql, {
-            "case_id": case_id,
-            "user_id": user_id,
-            "case_name": case_in.case_name,
-            "imaging_modality": case_in.imaging_modality,
-            "target_vessel": case_in.target_vessel,
-            "status": case_in.status
-        }).fetchone()
+        if user_id is None:
+            sql = text("""
+                UPDATE cases
+                SET case_name = COALESCE(:case_name, case_name),
+                    imaging_modality = COALESCE(:imaging_modality, imaging_modality),
+                    target_vessel = COALESCE(:target_vessel, target_vessel),
+                    status = COALESCE(:status, status)
+                WHERE case_id = :case_id
+                RETURNING case_id, user_id, case_name, imaging_modality,
+                          target_vessel, status, created_at;
+            """)
+            row = db.execute(sql, {
+                "case_id": case_id,
+                "case_name": case_in.case_name,
+                "imaging_modality": case_in.imaging_modality,
+                "target_vessel": case_in.target_vessel,
+                "status": case_in.status
+            }).fetchone()
+        else:
+            sql = text("""
+                UPDATE cases
+                SET case_name = COALESCE(:case_name, case_name),
+                    imaging_modality = COALESCE(:imaging_modality, imaging_modality),
+                    target_vessel = COALESCE(:target_vessel, target_vessel),
+                    status = COALESCE(:status, status)
+                WHERE case_id = :case_id
+                  AND user_id = :user_id
+                RETURNING case_id, user_id, case_name, imaging_modality,
+                          target_vessel, status, created_at;
+            """)
+            row = db.execute(sql, {
+                "case_id": case_id,
+                "user_id": str(user_id),
+                "case_name": case_in.case_name,
+                "imaging_modality": case_in.imaging_modality,
+                "target_vessel": case_in.target_vessel,
+                "status": case_in.status
+            }).fetchone()
         db.commit()
         if row:
             return dict(row._mapping)
@@ -398,14 +500,23 @@ class SQLClinicalService:
         Retrieves medical image metadata by image_id.
         Regular users can only retrieve images from their own cases.
         """
-        sql = text("""
-            SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
-            FROM medical_images m
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE m.image_id = :image_id
-            AND (:user_id IS NULL OR c.user_id = :user_id);
-        """)
-        row = db.execute(sql, {"image_id": image_id, "user_id": str(user_id) if user_id else None}).fetchone()
+        if user_id is None:
+            sql = text("""
+                SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
+                FROM medical_images m
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE m.image_id = :image_id;
+            """)
+            row = db.execute(sql, {"image_id": image_id}).fetchone()
+        else:
+            sql = text("""
+                SELECT m.image_id, m.case_id, m.image_name, m.image_path, m.image_format, m.image_size, m.uploaded_at
+                FROM medical_images m
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE m.image_id = :image_id
+                  AND c.user_id = :user_id;
+            """)
+            row = db.execute(sql, {"image_id": image_id, "user_id": str(user_id)}).fetchone()
         if not row:
             return None
         return dict(row._mapping)
@@ -624,18 +735,28 @@ class SQLClinicalService:
         """
         Retrieves a single segmentation result by ID with ownership check.
         """
-        sql = text("""
-            SELECT s.*
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE s.segmentation_id = :segmentation_id
-            AND (:user_id IS NULL OR c.user_id = :user_id);
-        """)
-        row = db.execute(sql, {
-            "segmentation_id": segmentation_id,
-            "user_id": str(user_id) if user_id else None,
-        }).fetchone()
+        if user_id is None:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE s.segmentation_id = :segmentation_id;
+            """)
+            row = db.execute(sql, {"segmentation_id": segmentation_id}).fetchone()
+        else:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE s.segmentation_id = :segmentation_id
+                  AND c.user_id = :user_id;
+            """)
+            row = db.execute(sql, {
+                "segmentation_id": segmentation_id,
+                "user_id": str(user_id),
+            }).fetchone()
         if not row:
             return None
         return dict(row._mapping)
@@ -735,16 +856,27 @@ class SQLClinicalService:
         Retrieves the most recent segmentation result.
         Regular users see only their own latest result; administrators see all.
         """
-        sql = text("""
-            SELECT s.*
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY s.created_at DESC, s.segmentation_id DESC
-            LIMIT 1;
-        """)
-        row = db.execute(sql, {"user_id": str(user_id) if user_id else None}).fetchone()
+        if user_id is None:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY s.created_at DESC, s.segmentation_id DESC
+                LIMIT 1;
+            """)
+            row = db.execute(sql).fetchone()
+        else:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY s.created_at DESC, s.segmentation_id DESC
+                LIMIT 1;
+            """)
+            row = db.execute(sql, {"user_id": str(user_id)}).fetchone()
         if not row:
             return None
         return dict(row._mapping)
@@ -827,16 +959,27 @@ class SQLClinicalService:
         Filters stenosis results by severity (e.g. Mild, Moderate, Severe).
         Regular users see only their own results; administrators see all.
         """
-        sql = text("""
-            SELECT st.*
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE LOWER(st.severity) = LOWER(:severity)
-            AND (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY st.stenosis_id;
-        """)
-        result = db.execute(sql, {"severity": severity.strip(), "user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE LOWER(st.severity) = LOWER(:severity)
+                ORDER BY st.stenosis_id;
+            """)
+            result = db.execute(sql, {"severity": severity.strip()})
+        else:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE LOWER(st.severity) = LOWER(:severity)
+                  AND c.user_id = :user_id
+                ORDER BY st.stenosis_id;
+            """)
+            result = db.execute(sql, {"severity": severity.strip(), "user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
@@ -846,15 +989,25 @@ class SQLClinicalService:
         Regular users see only their own results; administrators see all.
         """
         order_dir = "DESC NULLS LAST" if descending else "ASC NULLS LAST"
-        sql = text(f"""
-            SELECT st.*
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY st.confidence_score {order_dir};
-        """)
-        result = db.execute(sql, {"user_id": str(user_id) if user_id else None})
+        if user_id is None:
+            sql = text(f"""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY st.confidence_score {order_dir};
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text(f"""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY st.confidence_score {order_dir};
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
@@ -863,16 +1016,27 @@ class SQLClinicalService:
         Retrieves the most recent stenosis result.
         Regular users see only their own latest result; administrators see all.
         """
-        sql = text("""
-            SELECT st.*
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            ORDER BY st.created_at DESC, st.stenosis_id DESC
-            LIMIT 1;
-        """)
-        row = db.execute(sql, {"user_id": str(user_id) if user_id else None}).fetchone()
+        if user_id is None:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                ORDER BY st.created_at DESC, st.stenosis_id DESC
+                LIMIT 1;
+            """)
+            row = db.execute(sql).fetchone()
+        else:
+            sql = text("""
+                SELECT st.*
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                ORDER BY st.created_at DESC, st.stenosis_id DESC
+                LIMIT 1;
+            """)
+            row = db.execute(sql, {"user_id": str(user_id)}).fetchone()
         if not row:
             return None
         return dict(row._mapping)
@@ -887,70 +1051,105 @@ class SQLClinicalService:
 
         Regular users see only their own data; administrators see all.
         """
-        uid_param = str(user_id) if user_id else None
+        user_param = {"user_id": str(user_id)} if user_id else {}
+
+        users_filter = "WHERE id = :user_id" if user_id else ""
+        cases_filter = "WHERE user_id = :user_id" if user_id else ""
+        images_filter = "WHERE c.user_id = :user_id" if user_id else ""
+        stenosis_filter = "WHERE c.user_id = :user_id" if user_id else ""
 
         users_count = db.execute(
-            text("SELECT COUNT(*) AS total_registered_users FROM users WHERE (:user_id IS NULL OR id = :user_id);"),
-            {"user_id": uid_param}
+            text(f"SELECT COUNT(*) AS total_registered_users FROM users {users_filter};"),
+            user_param
         ).scalar() or 0
         cases_count = db.execute(
-            text("SELECT COUNT(*) AS total_medical_cases FROM cases WHERE (:user_id IS NULL OR user_id = :user_id);"),
-            {"user_id": uid_param}
+            text(f"SELECT COUNT(*) AS total_medical_cases FROM cases {cases_filter};"),
+            user_param
         ).scalar() or 0
         images_count = db.execute(
-            text("""
+            text(f"""
                 SELECT COUNT(*) AS total_uploaded_images
                 FROM medical_images m
                 JOIN cases c ON m.case_id = c.case_id
-                WHERE (:user_id IS NULL OR c.user_id = :user_id);
+                {images_filter};
             """),
-            {"user_id": uid_param}
+            user_param
         ).scalar() or 0
         stenosis_count = db.execute(
-            text("""
+            text(f"""
                 SELECT COUNT(*) AS total_stenosis_detections
                 FROM stenosis_results st
                 JOIN medical_images m ON st.image_id = m.image_id
                 JOIN cases c ON m.case_id = c.case_id
-                WHERE (:user_id IS NULL OR c.user_id = :user_id);
+                {stenosis_filter};
             """),
-            {"user_id": uid_param}
+            user_param
         ).scalar() or 0
 
         # Query recent activity (Query 28 from result_queries.sql)
-        recent_activity_sql = text("""
-            SELECT
-                m.image_id,
-                m.image_name,
-                'Segmentation' AS analysis_type,
-                s.model_name AS model_or_severity,
-                s.created_at AS analysis_date
-            FROM segmentation_results s
-            JOIN medical_images m
-                ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
+        if user_id is None:
+            recent_activity_sql = text("""
+                SELECT
+                    m.image_id,
+                    m.image_name,
+                    'Segmentation' AS analysis_type,
+                    s.model_name AS model_or_severity,
+                    s.created_at AS analysis_date
+                FROM segmentation_results s
+                JOIN medical_images m
+                    ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
 
-            UNION ALL
+                UNION ALL
 
-            SELECT
-                m.image_id,
-                m.image_name,
-                'Stenosis' AS analysis_type,
-                st.severity AS model_or_severity,
-                st.created_at AS analysis_date
-            FROM stenosis_results st
-            JOIN medical_images m
-                ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
+                SELECT
+                    m.image_id,
+                    m.image_name,
+                    'Stenosis' AS analysis_type,
+                    st.severity AS model_or_severity,
+                    st.created_at AS analysis_date
+                FROM stenosis_results st
+                JOIN medical_images m
+                    ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
 
-            ORDER BY analysis_date DESC
-            LIMIT 10;
-        """)
+                ORDER BY analysis_date DESC
+                LIMIT 10;
+            """)
+        else:
+            recent_activity_sql = text("""
+                SELECT
+                    m.image_id,
+                    m.image_name,
+                    'Segmentation' AS analysis_type,
+                    s.model_name AS model_or_severity,
+                    s.created_at AS analysis_date
+                FROM segmentation_results s
+                JOIN medical_images m
+                    ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+
+                UNION ALL
+
+                SELECT
+                    m.image_id,
+                    m.image_name,
+                    'Stenosis' AS analysis_type,
+                    st.severity AS model_or_severity,
+                    st.created_at AS analysis_date
+                FROM stenosis_results st
+                JOIN medical_images m
+                    ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+
+                ORDER BY analysis_date DESC
+                LIMIT 10;
+            """)
 
         recent_activity: List[Dict[str, Any]] = []
-        for row in db.execute(recent_activity_sql, {"user_id": uid_param}).fetchall():
+        for row in db.execute(recent_activity_sql, user_param).fetchall():
             m = row._mapping
             recent_activity.append({
                 "image_id": m["image_id"],
@@ -981,24 +1180,43 @@ class SQLClinicalService:
 
         Regular users see only their own results; administrators see all.
         """
-        sql = text("""
-            SELECT
-                s.model_name,
-                COUNT(*) AS total_results,
-                ROUND(AVG(s.dice_score), 4) AS average_dice,
-                ROUND(AVG(s.iou_score), 4) AS average_iou,
-                ROUND(AVG(s.precision_score), 4) AS average_precision,
-                ROUND(AVG(s.recall_score), 4) AS average_recall,
-                ROUND(AVG(s.f1_score), 4) AS average_f1
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            GROUP BY s.model_name
-            ORDER BY average_dice DESC;
-        """)
+        if user_id is None:
+            sql = text("""
+                SELECT
+                    s.model_name,
+                    COUNT(*) AS total_results,
+                    ROUND(AVG(s.dice_score), 4) AS average_dice,
+                    ROUND(AVG(s.iou_score), 4) AS average_iou,
+                    ROUND(AVG(s.precision_score), 4) AS average_precision,
+                    ROUND(AVG(s.recall_score), 4) AS average_recall,
+                    ROUND(AVG(s.f1_score), 4) AS average_f1
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                GROUP BY s.model_name
+                ORDER BY average_dice DESC;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT
+                    s.model_name,
+                    COUNT(*) AS total_results,
+                    ROUND(AVG(s.dice_score), 4) AS average_dice,
+                    ROUND(AVG(s.iou_score), 4) AS average_iou,
+                    ROUND(AVG(s.precision_score), 4) AS average_precision,
+                    ROUND(AVG(s.recall_score), 4) AS average_recall,
+                    ROUND(AVG(s.f1_score), 4) AS average_f1
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                GROUP BY s.model_name
+                ORDER BY average_dice DESC;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         results = []
-        for row in db.execute(sql, {"user_id": str(user_id) if user_id else None}).fetchall():
+        for row in result.fetchall():
             m = row._mapping
             results.append({
                 "model_name": m["model_name"],
@@ -1019,20 +1237,35 @@ class SQLClinicalService:
 
         Regular users see only their own results; administrators see all.
         """
-        sql = text("""
-            SELECT
-                st.severity,
-                COUNT(*) AS total_cases,
-                ROUND(AVG(st.confidence_score), 4) AS average_confidence
-            FROM stenosis_results st
-            JOIN medical_images m ON st.image_id = m.image_id
-            JOIN cases c ON m.case_id = c.case_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            GROUP BY st.severity
-            ORDER BY total_cases DESC;
-        """)
+        if user_id is None:
+            sql = text("""
+                SELECT
+                    st.severity,
+                    COUNT(*) AS total_cases,
+                    ROUND(AVG(st.confidence_score), 4) AS average_confidence
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                GROUP BY st.severity
+                ORDER BY total_cases DESC;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT
+                    st.severity,
+                    COUNT(*) AS total_cases,
+                    ROUND(AVG(st.confidence_score), 4) AS average_confidence
+                FROM stenosis_results st
+                JOIN medical_images m ON st.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE c.user_id = :user_id
+                GROUP BY st.severity
+                ORDER BY total_cases DESC;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         results = []
-        for row in db.execute(sql, {"user_id": str(user_id) if user_id else None}).fetchall():
+        for row in result.fetchall():
             m = row._mapping
             results.append({
                 "severity": m["severity"],
@@ -1054,6 +1287,9 @@ class SQLClinicalService:
         agg_fn = "GROUP_CONCAT" if is_sqlite else "STRING_AGG"
         agg_delim = "" if is_sqlite else ", ', '"
 
+        user_filter = "WHERE c.user_id = :user_id" if user_id else ""
+        user_param = {"user_id": str(user_id)} if user_id else {}
+
         query_str = f"""
             WITH segmentation_summary AS (
                 SELECT
@@ -1065,7 +1301,7 @@ class SQLClinicalService:
                 FROM segmentation_results s
                 JOIN medical_images m ON s.image_id = m.image_id
                 JOIN cases c ON m.case_id = c.case_id
-                WHERE (:user_id IS NULL OR c.user_id = :user_id)
+                {user_filter}
                 GROUP BY s.image_id
             ),
             stenosis_summary AS (
@@ -1078,7 +1314,7 @@ class SQLClinicalService:
                 FROM stenosis_results st
                 JOIN medical_images m ON st.image_id = m.image_id
                 JOIN cases c ON m.case_id = c.case_id
-                WHERE (:user_id IS NULL OR c.user_id = :user_id)
+                {user_filter}
                 GROUP BY st.image_id
             )
             SELECT
@@ -1103,17 +1339,17 @@ class SQLClinicalService:
                 ON m.image_id = s.image_id
             LEFT JOIN stenosis_summary st
                 ON m.image_id = st.image_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
         """
-        params: Dict[str, Any] = {"user_id": str(user_id) if user_id else None}
+        if user_filter:
+            query_str += f" {user_filter}"
         if case_id is not None:
             query_str += " AND c.case_id = :case_id"
-            params["case_id"] = case_id
+            user_param["case_id"] = case_id
         query_str += " ORDER BY c.case_id, m.image_id;"
 
         sql = text(query_str)
         results = []
-        for row in db.execute(sql, params).fetchall():
+        for row in db.execute(sql, user_param).fetchall():
             m = row._mapping
             results.append({
                 "case_id": m["case_id"],
@@ -1141,26 +1377,47 @@ class SQLClinicalService:
 
         Regular users see only their own cases; administrators see all.
         """
-        sql = text("""
-            SELECT
-                c.case_id,
-                c.case_name,
-                COUNT(DISTINCT m.image_id) AS total_images,
-                COUNT(DISTINCT s.segmentation_id) AS total_segmentation_results,
-                COUNT(DISTINCT st.stenosis_id) AS total_stenosis_results
-            FROM cases c
-            LEFT JOIN medical_images m
-                ON c.case_id = m.case_id
-            LEFT JOIN segmentation_results s
-                ON m.image_id = s.image_id
-            LEFT JOIN stenosis_results st
-                ON m.image_id = st.image_id
-            WHERE (:user_id IS NULL OR c.user_id = :user_id)
-            GROUP BY c.case_id, c.case_name
-            ORDER BY c.case_id;
-        """)
+        if user_id is None:
+            sql = text("""
+                SELECT
+                    c.case_id,
+                    c.case_name,
+                    COUNT(DISTINCT m.image_id) AS total_images,
+                    COUNT(DISTINCT s.segmentation_id) AS total_segmentation_results,
+                    COUNT(DISTINCT st.stenosis_id) AS total_stenosis_results
+                FROM cases c
+                LEFT JOIN medical_images m
+                    ON c.case_id = m.case_id
+                LEFT JOIN segmentation_results s
+                    ON m.image_id = s.image_id
+                LEFT JOIN stenosis_results st
+                    ON m.image_id = st.image_id
+                GROUP BY c.case_id, c.case_name
+                ORDER BY c.case_id;
+            """)
+            result = db.execute(sql)
+        else:
+            sql = text("""
+                SELECT
+                    c.case_id,
+                    c.case_name,
+                    COUNT(DISTINCT m.image_id) AS total_images,
+                    COUNT(DISTINCT s.segmentation_id) AS total_segmentation_results,
+                    COUNT(DISTINCT st.stenosis_id) AS total_stenosis_results
+                FROM cases c
+                LEFT JOIN medical_images m
+                    ON c.case_id = m.case_id
+                LEFT JOIN segmentation_results s
+                    ON m.image_id = s.image_id
+                LEFT JOIN stenosis_results st
+                    ON m.image_id = st.image_id
+                WHERE c.user_id = :user_id
+                GROUP BY c.case_id, c.case_name
+                ORDER BY c.case_id;
+            """)
+            result = db.execute(sql, {"user_id": str(user_id)})
         results = []
-        for row in db.execute(sql, {"user_id": str(user_id) if user_id else None}).fetchall():
+        for row in result.fetchall():
             m = row._mapping
             results.append({
                 "case_id": m["case_id"],
