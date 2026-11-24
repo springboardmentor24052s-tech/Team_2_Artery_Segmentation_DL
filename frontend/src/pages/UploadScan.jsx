@@ -17,6 +17,210 @@ import { formatBytes } from '../utils/formatters';
 
 const SUPPORTED_FORMATS = ['.png', '.jpg', '.jpeg'];
 
+const getSeverityStyles = (severity) => {
+  switch (String(severity || '').toLowerCase()) {
+    case 'normal':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'mild':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'moderate':
+      return 'bg-orange-100 text-orange-800';
+    case 'severe':
+      return 'bg-rose-100 text-rose-800';
+    case 'critical':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+};
+
+const downloadGeometryCsv = (geometry, results, fallbackImageId) => {
+  if (!Array.isArray(results) || results.length === 0) {
+    return;
+  }
+
+  const report = geometry?.report || geometry || {};
+
+  const imageId =
+    report.image_id ||
+    report.imageId ||
+    geometry?.image_id ||
+    geometry?.imageId ||
+    fallbackImageId ||
+    'artery_analysis';
+
+  const columns = [
+    'image_id',
+    'branch_id',
+    'branch_length',
+    'candidate_count',
+    'candidate_position',
+    'x',
+    'y',
+    'minimum_diameter_pixels',
+    'left_reference_pixels',
+    'right_reference_pixels',
+    'reference_diameter_pixels',
+    'reference_asymmetry_percent',
+    'estimated_narrowing_percent',
+    'severity',
+    'reference_quality',
+  ];
+
+  const escapeCsv = (value) => {
+    if (value === null || value === undefined) return '';
+    return `"${String(value).replace(/"/g, '""')}"`;
+  };
+
+  const rows = results.map((item, index) => {
+    const candidate =
+      item.deepest_candidate ||
+      item.deepestCandidate ||
+      item;
+
+    const severity =
+      candidate.severity_classification?.severity ||
+      candidate.severity ||
+      'unclassified';
+
+    return [
+      imageId,
+      item.branch_id ?? item.branchId ?? candidate.branch_id ?? index + 1,
+      item.branch_length ?? item.branchLength,
+      item.candidate_count ?? item.candidateCount,
+      candidate.position,
+      candidate.x,
+      candidate.y,
+      candidate.minimum_diameter_pixels,
+      candidate.left_reference_pixels,
+      candidate.right_reference_pixels,
+      candidate.reference_diameter_pixels,
+      candidate.reference_asymmetry_percent,
+      candidate.estimated_narrowing_percent ??
+        candidate.narrowing_percentage ??
+        candidate.narrowing_percent ??
+        candidate.stenosis_percentage,
+      severity,
+      candidate.reference_quality ??
+        candidate.quality_label ??
+        item.reference_quality ??
+        item.quality_label,
+    ];
+  });
+
+  const csvContent = [
+    columns.map(escapeCsv).join(','),
+    ...rows.map((row) => row.map(escapeCsv).join(',')),
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF', csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = `${imageId}_stenosis_research_report.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const formatPercentage = (value) => {
+  const numericValue = Number(value);
+
+  return Number.isFinite(numericValue)
+    ? `${numericValue.toFixed(2)}%`
+    : '—';
+};
+
+/*
+ * NORMALIZE GEOMETRY ANALYSIS
+ *
+ * The report may be returned through different paths depending
+ * on the upload service and CaseContext implementation.
+ *
+ * This helper checks:
+ * 1. uploadResult.geometryAnalysis
+ * 2. uploadResult.segmentation.geometryAnalysis
+ * 3. uploadResult.analysis.geometryAnalysis
+ * 4. Saved case segmentation.geometryAnalysis
+ * 5. Saved case geometryResults.syntax.stenosisReport
+ */
+
+const getGeometryAnalysis = (uploadResult, researchCase) => {
+  const candidates = [
+    uploadResult?.geometryAnalysis,
+    uploadResult?.segmentation?.geometryAnalysis,
+    uploadResult?.analysis?.geometryAnalysis,
+    researchCase?.segmentation?.geometryAnalysis,
+    researchCase?.geometryResults?.syntax?.stenosisReport,
+  ];
+
+  const hasSuccessfulReport = (candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      return false;
+    }
+
+    return (
+      candidate.success === true ||
+      candidate.status === 'success' ||
+      (Array.isArray(candidate.results) &&
+        candidate.results.length > 0) ||
+      (Array.isArray(candidate.report?.results) &&
+        candidate.report.results.length > 0)
+    );
+  };
+
+  // Prefer a successful report if multiple report objects exist.
+  const report =
+    candidates.find(hasSuccessfulReport) ||
+    candidates.find(
+      (candidate) =>
+        candidate && typeof candidate === 'object'
+    );
+
+  if (!report) {
+    return null;
+  }
+
+  const nestedReport = report.report || {};
+
+  const results =
+    report.results ||
+    nestedReport.results ||
+    [];
+
+  const success =
+    report.success ??
+    (
+      report.status === 'success' ||
+      nestedReport.status === 'success' ||
+      results.length > 0 ||
+      Boolean(report.reportUrl || report.report_url)
+    );
+
+  return {
+    ...report,
+    success,
+    results: Array.isArray(results) ? results : [],
+    image_id:
+      report.image_id ||
+      report.imageId ||
+      nestedReport.image_id ||
+      uploadResult?.segmentation?.image_id ||
+      researchCase?.segmentation?.imageId,
+    reportUrl:
+      report.reportUrl ||
+      report.report_url ||
+      null,
+  };
+};
+
 export default function UploadScan() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -178,6 +382,9 @@ export default function UploadScan() {
       );
 
       setUploadProgress(100);
+
+      // Preserve the complete upload response.
+      // Geometry analysis is normalized separately for display.
       setUploadResult(result);
 
     } catch (err) {
@@ -202,6 +409,18 @@ export default function UploadScan() {
   };
 
   const isStenosis = selectedModel === 'stenosis';
+  const isCombined = selectedModel === 'combined';
+
+  // Find the currently selected case.
+  const selectedCase = cases.find(
+    (item) => String(item.id) === String(selectedCaseId)
+  );
+
+  // Get the geometry report from the available report locations.
+  const geometryAnalysis = getGeometryAnalysis(
+    uploadResult,
+    selectedCase
+  );
 
   // 9. USER INTERFACE
   return (
@@ -242,14 +461,18 @@ export default function UploadScan() {
           </div>
 
           <p className="text-xs text-emerald-800">
-            File <strong>{uploadResult.file.name}</strong> was
+            File <strong>{uploadResult.file?.name || selectedFile?.name}</strong> was
             processed successfully for case{' '}
-            <strong>{uploadResult.caseId}</strong>.
+            <strong>{uploadResult.caseId || selectedCaseId}</strong>.
           </p>
 
           <p className="text-xs font-semibold text-emerald-800">
             Model used: {uploadResult.segmentation.model ||
-              (isStenosis ? 'Attention U-Net V3' : 'Syntax U-Net')}
+              (isStenosis
+                ? 'Attention U-Net V4'
+                : isCombined
+                  ? 'Syntax U-Net + Attention U-Net V4'
+                  : 'Syntax U-Net')}
           </p>
 
           {/* ORIGINAL AND PREDICTED MASK */}
@@ -298,8 +521,52 @@ export default function UploadScan() {
 
           </div>
 
+          {/* SECOND MODEL MASK FOR COMBINED ANALYSIS */}
+          {isCombined && uploadResult.stenosisMaskUrl && (
+            <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Stenosis Segmentation Mask — Attention U-Net V4
+              </h3>
+
+              <img
+                src={uploadResult.stenosisMaskUrl}
+                alt="Stenosis segmentation mask"
+                className="w-full max-h-96 object-contain bg-black rounded-lg"
+                onError={() =>
+                  setError('Unable to load the stenosis segmentation mask.')
+                }
+              />
+
+              <p className="text-xs text-slate-500">
+                White: Predicted stenosis regions | Black: Background
+              </p>
+            </div>
+          )}
+
+          {/* LOCALIZED STENOSIS CANDIDATES */}
+          {isCombined && uploadResult.localizedImageUrl && (
+            <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Stenosis Candidate Localization
+              </h3>
+
+              <img
+                src={uploadResult.localizedImageUrl}
+                alt="Localized stenosis candidates"
+                className="w-full max-h-96 object-contain bg-black rounded-lg"
+                onError={() =>
+                  setError('Unable to load the localized candidate image.')
+                }
+              />
+
+              <p className="text-xs text-slate-500">
+                Candidate regions identified by the experimental localization pipeline.
+              </p>
+            </div>
+          )}
+
           {/* STENOSIS PROBABILITY MAP */}
-          {isStenosis && uploadResult.probabilityMapUrl && (
+          {(isStenosis || isCombined) && uploadResult.probabilityMapUrl && (
             <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
               <h3 className="text-sm font-semibold text-slate-800">
                 Stenosis Probability Map
@@ -318,6 +585,297 @@ export default function UploadScan() {
             </div>
           )}
 
+          {isCombined && uploadResult.segmentation.notice && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              {uploadResult.segmentation.notice}
+            </p>
+          )}
+
+          {/* GEOMETRY-BASED STENOSIS ANALYSIS */}
+          {geometryAnalysis && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 space-y-4">
+
+              {geometryAnalysis.success ? (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Geometry-Based Stenosis Analysis
+                      </h3>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        Experimental narrowing estimates from the Syntax U-Net artery mask.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                      {geometryAnalysis.reportUrl && (
+                        <a
+                          href={geometryAnalysis.reportUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          View JSON Report
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const geometry = geometryAnalysis;
+
+                          const results =
+                            geometry.results ||
+                            geometry.report?.results ||
+                            [];
+
+                          downloadGeometryCsv(
+                            geometry,
+                            results,
+                            uploadResult.segmentation?.image_id
+                          );
+                        }}
+                        disabled={
+                          !(
+                            geometryAnalysis.results ||
+                            geometryAnalysis.report?.results ||
+                            []
+                          ).length
+                        }
+                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Download CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const geometry = geometryAnalysis;
+
+                    const geometryResults =
+                      geometry.results ||
+                      geometry.report?.results ||
+                      [];
+
+                    const branchCount =
+                      geometry.totalBranches ??
+                      geometry.branchCount ??
+                      geometry.branchesEvaluated ??
+                      geometryResults.length;
+
+                    const severityCounts = geometryResults.reduce(
+                      (counts, item) => {
+                        const candidate =
+                          item.deepest_candidate ||
+                          item.deepestCandidate ||
+                          item;
+
+                        const severity =
+                          candidate.severity_classification?.severity ||
+                          candidate.severity ||
+                          'unclassified';
+
+                        const key = String(severity).toLowerCase();
+
+                        counts[key] = (counts[key] || 0) + 1;
+
+                        return counts;
+                      },
+                      {}
+                    );
+
+                    return (
+                      <>
+                        {/* GEOMETRY SUMMARY */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-[11px] text-slate-500">
+                              Branches Evaluated
+                            </p>
+
+                            <p className="text-xl font-bold text-slate-900 mt-1">
+                              {branchCount}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-[11px] text-slate-500">
+                              Results Returned
+                            </p>
+
+                            <p className="text-xl font-bold text-slate-900 mt-1">
+                              {geometryResults.length}
+                            </p>
+                          </div>
+
+                          <div className="col-span-2 sm:col-span-1 rounded-lg bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-[11px] text-slate-500">
+                              Classification Status
+                            </p>
+
+                            <p className="text-sm font-bold text-amber-700 mt-2">
+                              Provisional
+                            </p>
+                          </div>
+
+                        </div>
+
+                        {/* BRANCH-WISE RESULTS TABLE */}
+                        {geometryResults.length > 0 ? (
+                          <div className="overflow-x-auto rounded-lg border border-slate-200">
+                            <table className="w-full min-w-[620px] text-xs text-left">
+
+                              <thead className="bg-slate-50 text-slate-600">
+                                <tr>
+                                  <th className="px-3 py-3 font-semibold">
+                                    Branch
+                                  </th>
+
+                                  <th className="px-3 py-3 font-semibold">
+                                    Estimated Narrowing
+                                  </th>
+
+                                  <th className="px-3 py-3 font-semibold">
+                                    Provisional Category
+                                  </th>
+
+                                  <th className="px-3 py-3 font-semibold">
+                                    Reference Quality
+                                  </th>
+                                </tr>
+                              </thead>
+
+                              <tbody className="divide-y divide-slate-100">
+                                {geometryResults.map((item, index) => {
+                                  const candidate =
+                                    item.deepest_candidate ||
+                                    item.deepestCandidate ||
+                                    item;
+
+                                  const branchId =
+                                    item.branch_id ??
+                                    item.branchId ??
+                                    candidate.branch_id ??
+                                    index + 1;
+
+                                  const narrowing =
+                                    candidate.estimated_narrowing_percent ??
+                                    candidate.narrowing_percentage ??
+                                    candidate.narrowing_percent ??
+                                    candidate.stenosis_percentage;
+
+                                  const severity =
+                                    candidate.severity_classification?.severity ||
+                                    candidate.severity ||
+                                    'Unclassified';
+
+                                  const quality =
+                                    candidate.reference_quality ||
+                                    candidate.quality_label ||
+                                    item.reference_quality ||
+                                    item.quality_label ||
+                                    'Not available';
+
+                                  return (
+                                    <tr
+                                      key={`${branchId}-${index}`}
+                                      className="bg-white"
+                                    >
+                                      <td className="px-3 py-3 font-semibold text-slate-800">
+                                        {branchId}
+                                      </td>
+
+                                      <td className="px-3 py-3 text-slate-700">
+                                        {formatPercentage(narrowing)}
+                                      </td>
+
+                                      <td className="px-3 py-3">
+                                        <span
+                                          className={`inline-flex px-2 py-1 rounded-full text-[11px] font-semibold capitalize ${getSeverityStyles(severity)}`}
+                                        >
+                                          {severity}
+                                        </span>
+                                      </td>
+
+                                      <td className="px-3 py-3 text-slate-600">
+                                        {String(quality).replaceAll('_', ' ')}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                            Geometry analysis completed, but no branch-wise results were returned.
+                          </p>
+                        )}
+
+                        {/* SEVERITY DISTRIBUTION */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-700">
+                            Provisional Severity Distribution
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              'normal',
+                              'mild',
+                              'moderate',
+                              'severe',
+                              'critical',
+                            ].map((level) =>
+                              severityCounts[level] ? (
+                                <span
+                                  key={level}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${getSeverityStyles(level)}`}
+                                >
+                                  {level}: {severityCounts[level]}
+                                </span>
+                              ) : null
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  {/* EXPERIMENTAL DISCLAIMER */}
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
+                    <p className="text-xs font-semibold text-amber-900">
+                      Research / experimental output — not a clinical diagnosis
+                    </p>
+
+                    <p className="text-[11px] leading-relaxed text-amber-800">
+                      Narrowing values are estimated from predicted 2D vessel-mask geometry.
+                      Severity categories use provisional thresholds and have not been clinically
+                      validated. Results may be affected by segmentation quality and image conditions;
+                      they must not be used for clinical decisions.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold text-amber-900">
+                    Geometry analysis was not completed
+                  </p>
+
+                  <p className="text-xs text-amber-800 mt-1">
+                    The image segmentation succeeded, but the additional geometry-based analysis
+                    could not be completed.
+                    {geometryAnalysis.error
+                      ? ` ${geometryAnalysis.error}`
+                      : ''}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* SEGMENTATION METRICS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
@@ -327,9 +885,9 @@ export default function UploadScan() {
               </p>
 
               <p className="text-lg font-bold text-slate-800 mt-1">
-                {uploadResult.segmentation.image_dimensions.width}
+                {uploadResult.segmentation.image_dimensions?.width}
                 {' × '}
-                {uploadResult.segmentation.image_dimensions.height}
+                {uploadResult.segmentation.image_dimensions?.height}
               </p>
             </div>
 
@@ -339,7 +897,7 @@ export default function UploadScan() {
               </p>
 
               <p className="text-lg font-bold text-slate-800 mt-1">
-                {uploadResult.segmentation.foreground_pixels.toLocaleString()}
+                {uploadResult.segmentation.foreground_pixels?.toLocaleString?.() || '—'}
               </p>
             </div>
 
@@ -348,7 +906,7 @@ export default function UploadScan() {
           {/* IMAGE ID */}
           <div className="text-xs text-slate-600 break-all">
             <strong>Image ID:</strong>{' '}
-            {uploadResult.segmentation.image_id}
+            {uploadResult.segmentation.image_id || 'Not available'}
           </div>
 
           {/* ACTION BUTTONS */}
@@ -359,7 +917,7 @@ export default function UploadScan() {
               size="sm"
               icon={ArrowRight}
               onClick={() =>
-                navigate(`/cases/${uploadResult.caseId}`)
+                navigate(`/cases/${uploadResult.caseId || selectedCaseId}`)
               }
             >
               View Updated Case
@@ -425,7 +983,7 @@ export default function UploadScan() {
         {/* STEP 2: SELECT MODEL */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
-            2. Select Segmentation Model
+            2. Select Analysis Mode
             <span className="text-rose-500"> *</span>
           </label>
 
@@ -444,9 +1002,11 @@ export default function UploadScan() {
               <p className="text-sm font-semibold text-slate-800">
                 Syntax Segmentation
               </p>
+
               <p className="text-xs text-slate-500 mt-1">
                 Syntax U-Net – detects coronary artery structures.
               </p>
+
               {selectedModel === 'syntax' && (
                 <span className="text-xs font-semibold text-blue-700 mt-2 block">
                   Selected
@@ -467,11 +1027,40 @@ export default function UploadScan() {
               <p className="text-sm font-semibold text-slate-800">
                 Stenosis Segmentation
               </p>
+
               <p className="text-xs text-slate-500 mt-1">
-                Attention U-Net V3 – detects annotated stenosis regions.
+                Attention U-Net V4 – predicts potential stenosis regions.
               </p>
+
               {selectedModel === 'stenosis' && (
                 <span className="text-xs font-semibold text-blue-700 mt-2 block">
+                  Selected
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              disabled={isUploading}
+              onClick={() => setSelectedModel('combined')}
+              className={`text-left p-4 rounded-xl border-2 transition-all sm:col-span-2 ${
+                selectedModel === 'combined'
+                  ? 'border-emerald-600 bg-emerald-50'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+            >
+              <p className="text-sm font-semibold text-slate-800">
+                Complete AI Analysis (Both Models)
+              </p>
+
+              <p className="text-xs text-slate-500 mt-1">
+                Runs Syntax U-Net and Attention U-Net V4 on the same image.
+                Provides artery segmentation, stenosis prediction,
+                probability map and candidate localization.
+              </p>
+
+              {selectedModel === 'combined' && (
+                <span className="text-xs font-semibold text-emerald-700 mt-2 block">
                   Selected
                 </span>
               )}
@@ -581,7 +1170,9 @@ export default function UploadScan() {
           <div className="space-y-2 p-4 rounded-xl bg-blue-50/50 border border-blue-100">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-blue-900">
-                Running {selectedModel === 'stenosis' ? 'Stenosis' : 'Syntax'} segmentation...
+                {isCombined
+                  ? 'Running combined Syntax and Stenosis analysis...'
+                  : `Running ${isStenosis ? 'Stenosis' : 'Syntax'} segmentation...`}
               </span>
 
               <span className="font-mono font-medium text-blue-700">
@@ -620,7 +1211,9 @@ export default function UploadScan() {
           >
             {isUploading
               ? 'Processing Image...'
-              : `Upload & Run ${selectedModel === 'stenosis' ? 'Stenosis' : 'Syntax'} Segmentation`}
+              : isCombined
+                ? 'Upload & Run Complete AI Analysis'
+                : `Upload & Run ${isStenosis ? 'Stenosis' : 'Syntax'} Segmentation`}
           </Button>
         </div>
 
