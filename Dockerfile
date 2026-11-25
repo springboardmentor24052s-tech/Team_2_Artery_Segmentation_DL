@@ -8,7 +8,7 @@
 # =============================================================================
 
 # -----------------------------
-# Stage 1: Build dependencies (CPU-only PyTorch)
+# Stage 1: Build dependencies
 # -----------------------------
 FROM python:3.12-slim AS deps
 
@@ -19,7 +19,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install OS-level dependencies required by OpenCV and psycopg
+# Install OS-level dependencies required by OpenCV, PyTorch, and psycopg
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
@@ -32,9 +32,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install runtime-only Python dependencies (CPU-only PyTorch, no dev/test deps)
+# Installed in separate layers for caching efficiency:
+# 1. torch (CPU-only) - largest dependency, changes infrequently
+# 2. Everything else together - faster resolution, fewer layers
 COPY requirements-runtime.txt /app/requirements-runtime.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements-runtime.txt
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir --no-deps torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir fastapi uvicorn[standard] pydantic[email] pydantic-settings \
+    sqlalchemy psycopg[binary] pwdlib[argon2] pyjwt[crypto] \
+    opencv-python-headless numpy python-multipart filelock fsspec jinja2 markupsafe mpmath networkx
 
 # -----------------------------
 # Stage 2: Application runtime
