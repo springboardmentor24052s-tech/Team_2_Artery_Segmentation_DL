@@ -1,0 +1,1 @@
+Place original coronary angiography training images in this folder. Supported formats: PNG, JPG/JPEG, BMP, TIF/TIFF. Each image must have a same-named binary mask in ../masks (example: case001.png in both folders). Use only images you are authorized to use and properly de-identified research data.

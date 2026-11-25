@@ -1,0 +1,1 @@
+Place expert-annotated binary vessel masks here, with exactly the same filename as each source image. White pixels (grayscale >=128) represent target vessel pixels; black pixels represent background. Use a consistent annotation policy. Do not use the generated sample angiogram as ground truth; a red arrow or visual marker is not a vessel segmentation mask.
