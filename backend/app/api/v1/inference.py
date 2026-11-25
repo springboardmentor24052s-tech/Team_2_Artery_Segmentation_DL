@@ -45,11 +45,6 @@ def list_available_models(
     current_user: User = Depends(get_current_user),
 ):
     """Return the names of loaded segmentation models."""
-    if not inference_service.is_loaded:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Inference models are not loaded yet.",
-        )
     return list(inference_service._models.keys())
 
 
@@ -75,12 +70,6 @@ def predict_segmentation(
     and return the binary mask, overlay, and metadata as base64-encoded data.
     No database persistence or file storage is performed."""
     _validate_image_file(file)
-
-    if not inference_service.is_loaded:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Inference models are not loaded yet.",
-        )
 
     if model_type not in (SegmentationModelType.UNET.value, SegmentationModelType.ATTENTION_UNET.value):
         raise HTTPException(
@@ -153,12 +142,6 @@ def upload_and_predict(
     6. Return the persisted result
     """
     _validate_image_file(file)
-
-    if not inference_service.is_loaded:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Inference models are not loaded yet.",
-        )
 
     if model_type not in (SegmentationModelType.UNET.value, SegmentationModelType.ATTENTION_UNET.value):
         raise HTTPException(

@@ -1,5 +1,7 @@
 import base64
 import logging
+import os
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -63,7 +65,12 @@ class InferenceService:
             self.device = torch.device(device)
 
         self._models: Dict[str, nn.Module] = {}
-        self._is_loaded: bool = False
+        self._lock = threading.Lock()
+        self._is_loaded = False
+
+        # Configure CPU threads for PyTorch inference
+        num_threads = max(1, os.cpu_count() or 1)
+        torch.set_num_threads(num_threads)
 
     @property
     def is_loaded(self) -> bool:
@@ -71,8 +78,8 @@ class InferenceService:
 
     def load_models(self) -> None:
         """
-        Loads all model checkpoints into memory once.
-        Supports unet and attention_unet checkpoints.
+        Loads all model checkpoints into memory.
+        Called explicitly when needed; models are also loaded lazily on first use via get_model().
         """
         logger.info(f"Loading inference models using device: {self.device}")
         logger.info(f"Checkpoint directory: {self.checkpoint_dir}")
@@ -124,12 +131,42 @@ class InferenceService:
     def get_model(self, model_type: Union[str, SegmentationModelType]) -> nn.Module:
         key = model_type.value if isinstance(model_type, SegmentationModelType) else str(model_type).lower()
         if key not in self._models:
-            available = list(self._models.keys())
-            raise ValueError(
-                f"Model '{key}' is not available. Available models: {available}. "
-                "Ensure load_models() has been called and checkpoints exist."
-            )
+            with self._lock:
+                # Double-check after acquiring lock
+                if key not in self._models:
+                    self._load_model_by_key(key)
         return self._models[key]
+
+    def _load_model_by_key(self, model_key: str) -> None:
+        """Load a specific model by key on first request (lazy loading)."""
+        configs = {
+            SegmentationModelType.UNET.value: (UNet, "unet_best.pth", "unet_latest.pth"),
+            SegmentationModelType.ATTENTION_UNET.value: (AttentionUNet, "attention_unet_best.pth", "attention_unet_latest.pth"),
+        }
+
+        if model_key not in (SegmentationModelType.UNET.value, SegmentationModelType.ATTENTION_UNET.value):
+            raise ValueError(
+                f"Model '{key}' is not available. Available models: {SegmentationModelType.UNET.value}, {SegmentationModelType.ATTENTION_UNET.value}"
+            )
+
+        model_class, best_name, fallback_name = configs[model_key]
+        ckpt_path = self.checkpoint_dir / best_name
+        if not ckpt_path.exists():
+            fallback_path = self.checkpoint_dir / fallback_name
+            if fallback_path.exists():
+                ckpt_path = fallback_path
+            else:
+                raise ValueError(
+                    f"Checkpoint not found for {model_key} at {ckpt_path} or {fallback_path}."
+                )
+
+        try:
+            model = self._load_checkpoint(model_class, ckpt_path)
+            self._models[model_key] = model
+            logger.info(f"Successfully loaded model '{model_key}' from {ckpt_path.name}")
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint for {model_key} from {ckpt_path}: {e}")
+            raise
 
     # -------------------------------------------------------------------------
     # Preprocessing
@@ -273,7 +310,7 @@ class InferenceService:
         tensor, original_gray, (orig_h, orig_w) = self.preprocess_image(image_input)
 
         # 2. Forward pass
-        with torch.no_grad():
+        with torch.inference_mode():
             logits = model(tensor)
             probs = torch.sigmoid(logits)[0, 0].cpu().numpy()
 

@@ -23,12 +23,6 @@ async def lifespan(app: FastAPI):
         # fail gracefully or log safely without printing secrets
         print(f"Database initialization warning: {type(e).__name__}")
 
-    # Load segmentation AI models once on application startup
-    try:
-        inference_service.load_models()
-    except Exception as e:
-        print(f"Inference models initialization warning: {type(e).__name__}: {e}")
-
     yield
 
 
