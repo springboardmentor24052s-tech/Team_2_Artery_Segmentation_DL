@@ -1,0 +1,13 @@
+import psycopg
+conn = psycopg.connect('postgresql://postgres:artery_db_password@db:5432/artery_db')
+cur = conn.cursor()
+cur.execute("DROP TABLE IF EXISTS stenosis_results CASCADE")
+cur.execute("DROP TABLE IF EXISTS segmentation_results CASCADE")
+cur.execute("DROP TABLE IF EXISTS medical_images CASCADE")
+cur.execute("DROP TABLE IF EXISTS cases CASCADE")
+cur.execute("DROP TABLE IF EXISTS refresh_tokens CASCADE")
+cur.execute("DROP TABLE IF EXISTS users CASCADE")
+cur.execute("DROP TABLE IF EXISTS alembic_version CASCADE")
+conn.commit()
+conn.close()
+print('All tables dropped')

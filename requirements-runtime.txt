@@ -1,0 +1,17 @@
+# Runtime-only dependencies for Docker image
+# (Development/test dependencies like pytest, httpx are excluded)
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic[email]>=2.9.0
+pydantic-settings>=2.5.0
+sqlalchemy>=2.0.35
+psycopg[binary]>=3.2.0
+pwdlib[argon2]>=0.2.0
+pyjwt[crypto]>=2.9.0
+
+# ML Inference Dependencies (CPU-only)
+torch --index-url https://download.pytorch.org/whl/cpu
+opencv-python-headless
+numpy
+python-multipart

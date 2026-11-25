@@ -1,0 +1,80 @@
+# =============================================================================
+# .dockerignore — Artery Stenosis Detection Backend
+# =============================================================================
+
+# Version control
+.git/
+.gitignore
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+server_stdout.log
+server_stderr.log
+
+# Kilo config
+.kilo/
+
+# Application uploads (user-generated, don't copy existing files)
+uploads/images/
+
+# AIML_testing — exclude training-only data, keep only model checkpoints
+AIML_testing/data/
+AIML_testing/outputs/centerline_previews/
+AIML_testing/outputs/selected_image_predictions/
+AIML_testing/outputs/postprocess_previews/
+AIML_testing/outputs/diameter_previews/
+AIML_testing/outputs/diameter_reports/
+AIML_testing/outputs/centerline_reports/
+AIML_testing/outputs/vessel_structure_reports/
+AIML_testing/outputs/validation_review/
+AIML_testing/outputs/performance_report/
+AIML_testing/outputs/evaluation_unet/
+AIML_testing/outputs/evaluation_attention/
+AIML_testing/outputs/syntax_mask_previews/
+AIML_testing/*.py
+AIML_testing/*.md
+AIML_testing/LICENSE
+AIML_testing/.gitignore
+AIML_testing/.gitattributes
+
+# Tests (not needed for production image)
+tests/
+
+# Documentation
+LICENSE
+LICENSE copy
+
+# Keep only what's needed:
+# - backend/ (application code)
+# - requirements.txt (dependencies)
+# - AIML_testing/outputs/models/ (model checkpoints)
+# - uploads/ (directory structure, empty)
