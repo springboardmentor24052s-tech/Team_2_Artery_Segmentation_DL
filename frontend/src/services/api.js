@@ -1,48 +1,50 @@
+
 import axios from 'axios';
 
 /**
- * Centralized Axios API client instance
- * 
- * Configured with provisional base URL from environment variables.
- * Ready for future backend integration without modifying frontend components.
+ * Centralized Axios API client instance.
+ * Supports both JSON requests and multipart FormData uploads.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    Accept: 'application/json',
   },
 });
 
-// Request interceptor to attach JWT token when backend authentication is connected
+// Attach JWT token to authenticated requests.
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('arteryai_auth_token');
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for consistent error normalization
+// Normalize API errors.
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Graceful handling of common API responses
     const customError = {
-      message: error.response?.data?.message || error.message || 'An unexpected error occurred',
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        'An unexpected error occurred',
       status: error.response?.status,
       data: error.response?.data,
       isNetworkError: !error.response,
     };
+
     return Promise.reject(customError);
   }
 );

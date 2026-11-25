@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCases } from '../context/CaseContext';
 import { useTheme } from '../context/ThemeContext';
 import { APP_NAME } from '../utils/constants';
+import { IS_MOCK_MODE } from '../services/api';
 
 
 
@@ -73,15 +74,17 @@ export default function Navbar({ onToggleSidebar }) {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={handleReset}
-          title="Reset sample cases to the default benchmark data"
-          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Sample Data</span>
-        </button>
+        {IS_MOCK_MODE && (
+          <button
+            type="button"
+            onClick={handleReset}
+            title="Reset sample cases to the default benchmark data"
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Sample Data</span>
+          </button>
+        )}
 
         {/* Appearance settings */}
         <div className="relative">

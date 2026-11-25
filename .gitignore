@@ -45,3 +45,24 @@ __pycache__/
 README.md
 ArteryAI_README_updated.md
 
+
+# Python virtual environments
+.venv/
+venv/
+ENV/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+
+# Uploaded files and runtime storage
+uploads/
+backend/uploads/
+
+# Generated model outputs
+training/outputs/
+AIML_testing/outputs/
+
+# Temporary backups
+*.bak
+*.backup

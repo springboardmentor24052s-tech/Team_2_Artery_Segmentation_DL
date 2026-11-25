@@ -136,9 +136,8 @@ export const uploadService = {
       '/inference/upload-and-predict',
       formData,
       {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        // Let the browser/Axios generate the multipart boundary.
+        // Manually setting Content-Type can omit the boundary required by FastAPI.
         timeout: 120000,
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {

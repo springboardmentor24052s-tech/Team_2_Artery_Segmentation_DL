@@ -18,6 +18,7 @@ import Button from '../components/Button';
 import StatusBadge from '../components/StatusBadge';
 import { useCases } from '../context/CaseContext';
 import { PREPROCESSING_STAGES, CASE_STATUS } from '../utils/constants';
+import { IS_MOCK_MODE } from '../services/api';
 
 export default function PreprocessingStatus() {
   const navigate = useNavigate();
@@ -73,6 +74,17 @@ export default function PreprocessingStatus() {
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           Standardization, contrast adaptation (CLAHE), and frame validation stages for X-ray coronary angiography scans.
         </p>
+        {!IS_MOCK_MODE && (
+          <div
+            role="status"
+            className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900"
+          >
+            This monitor currently shows workflow status only. Stage progression
+            is simulated in demo mode; the connected backend does not yet expose
+            a preprocessing-status endpoint, so no manual stage controls are
+            available here.
+          </div>
+        )}
       </div>
 
 
@@ -191,16 +203,18 @@ export default function PreprocessingStatus() {
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-2">
-                      {/* Stage processing trigger */}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        isLoading={isSimulating}
-                        onClick={() => handleSimulateNextStep(c.id, c.preprocessingStage)}
-                        title="Process case to next pipeline stage"
-                      >
-                        Process Next Stage
-                      </Button>
+                      {/* Stage progression is a demo-only simulation. */}
+                      {IS_MOCK_MODE && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          isLoading={isSimulating}
+                          onClick={() => handleSimulateNextStep(c.id, c.preprocessingStage)}
+                          title="Simulate the next pipeline stage"
+                        >
+                          Process Next Stage
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
