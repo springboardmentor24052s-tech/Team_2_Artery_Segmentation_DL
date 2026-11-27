@@ -25,6 +25,49 @@ const SUPPORTED_IMAGE_TYPES = new Set([
   'image/bmp',
 ]);
 
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp',
+]);
+
+function extractCollection(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.value)) return payload.value;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+function mapBackendImage(image) {
+  const imageId = image?.image_id ?? image?.id ?? null;
+  const width = image?.original_width ?? image?.width ?? null;
+  const height = image?.original_height ?? image?.height ?? null;
+  const dimensions = width && height ? `${width} x ${height} px` : null;
+
+  return {
+    imageId,
+    name: image?.original_filename || image?.original_name || image?.file_name || image?.filename || image?.name || (imageId ? `Image ${imageId}` : 'Uploaded image'),
+    size: image?.file_size_bytes ?? image?.size_bytes ?? image?.file_size ?? image?.size ?? null,
+    type: image?.mime_type || image?.content_type || image?.file_type || image?.type || '',
+    uploadedAt: image?.created_at || image?.uploaded_at || null,
+    dimensions,
+    backendRecord: image,
+  };
+}
+
+function validateImageFile(file) {
+  const name = String(file?.name || '').toLowerCase();
+  const extension = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+  const mimeType = String(file?.type || '').toLowerCase();
+
+  if (extension && SUPPORTED_IMAGE_EXTENSIONS.has(extension)) return;
+  if (!extension && SUPPORTED_IMAGE_TYPES.has(mimeType)) return;
+
+  throw new Error(
+    'Unsupported image format. Real inference accepts PNG, JPG, JPEG, TIFF and BMP images. DICOM is not supported by this endpoint.'
+  );
+}
+
 const validatePositiveId = (value, label) => {
   const id = Number(value);
 
@@ -119,11 +162,7 @@ export const uploadService = {
     // -------------------------------------------------------
     // REAL BACKEND MODE
     // -------------------------------------------------------
-    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-      throw new Error(
-        'Unsupported image format. Real inference currently accepts PNG, JPG, JPEG, TIFF and BMP images. DICOM is not supported by this endpoint.'
-      );
-    }
+    validateImageFile(file);
 
     const numericCaseId = validatePositiveId(caseId, 'backend case ID');
 
@@ -235,7 +274,18 @@ export const uploadService = {
       `/sql/cases/${numericCaseId}/segmentation-results`
     );
 
-    return response.data;
+    return extractCollection(response.data);
+  },
+
+  // ---------------------------------------------------------
+  // RETRIEVE UPLOADED IMAGE RECORDS FOR A CASE
+  // ---------------------------------------------------------
+  async getCaseImages(caseId) {
+    if (IS_MOCK_MODE) return [];
+
+    const numericCaseId = validatePositiveId(caseId, 'backend case ID');
+    const response = await apiClient.get(`/sql/cases/${numericCaseId}/images`);
+    return extractCollection(response.data).map(mapBackendImage);
   },
 
   // ---------------------------------------------------------

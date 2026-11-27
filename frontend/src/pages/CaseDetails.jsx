@@ -27,9 +27,10 @@ export default function CaseDetails() {
   const navigate = useNavigate();
   const { cases, isLoading } = useCases();
 
-  const caseData = cases.find((c) => c.id === id);
+  const caseData = cases.find((c) => String(c.id) === String(id));
 
   const [hasPersistedResults, setHasPersistedResults] = useState(false);
+  const [persistedImages, setPersistedImages] = useState([]);
   const [isCheckingResults, setIsCheckingResults] = useState(false);
   const [resultCheckError, setResultCheckError] = useState('');
 
@@ -38,45 +39,45 @@ export default function CaseDetails() {
 
     if (IS_MOCK_MODE || !id) {
       setHasPersistedResults(false);
+      setPersistedImages([]);
       setIsCheckingResults(false);
       setResultCheckError('');
-
-      return () => {
-        active = false;
-      };
+      return () => { active = false; };
     }
 
-    const checkSavedResults = async () => {
+    const loadSavedRecords = async () => {
       setIsCheckingResults(true);
       setResultCheckError('');
 
-      try {
-        const results = await uploadService.getSegmentationResults(id);
+      const [resultsResponse, imagesResponse] = await Promise.allSettled([
+        uploadService.getSegmentationResults(id),
+        uploadService.getCaseImages(id),
+      ]);
 
-        if (active) {
-          setHasPersistedResults(
-            Array.isArray(results) && results.length > 0
-          );
-        }
-      } catch (error) {
-        if (active) {
-          setHasPersistedResults(false);
-          setResultCheckError(
-            error.message || 'Saved analysis results could not be checked.'
-          );
-        }
-      } finally {
-        if (active) {
-          setIsCheckingResults(false);
-        }
+      if (!active) return;
+
+      const results = resultsResponse.status === 'fulfilled'
+        ? resultsResponse.value : [];
+      const images = imagesResponse.status === 'fulfilled'
+        ? imagesResponse.value : [];
+
+      setHasPersistedResults(results.length > 0);
+      setPersistedImages(images);
+
+      if (resultsResponse.status === 'rejected' && imagesResponse.status === 'rejected') {
+        setResultCheckError(
+          resultsResponse.reason?.message || imagesResponse.reason?.message ||
+          'Saved image and segmentation records could not be checked.'
+        );
+      } else if (resultsResponse.status === 'rejected') {
+        setResultCheckError(resultsResponse.reason?.message || 'Segmentation results could not be checked.');
       }
+
+      setIsCheckingResults(false);
     };
 
-    checkSavedResults();
-
-    return () => {
-      active = false;
-    };
+    loadSavedRecords();
+    return () => { active = false; };
   }, [id]);
 
   if (isLoading) {
@@ -112,8 +113,12 @@ export default function CaseDetails() {
     );
   }
 
-  // Keep file metadata and persisted backend results separate.
-  const hasUploadedFile = Boolean(caseData.file);
+  // Prefer current-session file metadata; otherwise use persisted image records.
+  const latestPersistedImage = [...persistedImages].sort((a, b) =>
+    new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
+  )[0];
+  const fileMetadata = caseData.file || latestPersistedImage || null;
+  const hasUploadedFile = Boolean(fileMetadata);
 
   const hasPersistedResultsWithoutFile =
     hasPersistedResults && !hasUploadedFile;
@@ -266,7 +271,7 @@ export default function CaseDetails() {
 
             {hasUploadedFile && (
               <span className="text-xs text-slate-500 font-mono">
-                {formatBytes(caseData.file.size)}
+                {formatBytes(fileMetadata.size)}
               </span>
             )}
           </div>
@@ -289,28 +294,28 @@ export default function CaseDetails() {
 
                 <div className="mt-4 text-xs text-slate-300">
                   <p className="font-semibold text-white">
-                    {caseData.file.name}
+                    {fileMetadata.name}
                   </p>
 
                   <p className="text-slate-400 text-[11px] mt-0.5">
-                    Frame Resolution: {caseData.file.dimensions || '512 x 512 px'}
-                    {' '}&bull; Uploaded {formatDate(caseData.file.uploadedAt)}
+                    Frame Resolution: {fileMetadata.dimensions || '512 x 512 px'}
+                    {' '}&bull; Uploaded {formatDate(fileMetadata.uploadedAt)}
                   </p>
                 </div>
               </div>
 
               {/* DICOM / File Headers */}
-              {caseData.file.dicomMeta ? (
+              {fileMetadata.dicomMeta ? (
                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs space-y-1.5">
                   <p className="font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
                     Angiography Acquisition Metadata
                   </p>
 
                   <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px] font-mono">
-                    <div>Photometric: {caseData.file.dicomMeta.photometric}</div>
-                    <div>Tube Voltage: {caseData.file.dicomMeta.kvp}</div>
-                    <div>Frame Rate: {caseData.file.dicomMeta.frameRate}</div>
-                    <div>Field of View: {caseData.file.dicomMeta.fieldOfView}</div>
+                    <div>Photometric: {fileMetadata.dicomMeta.photometric}</div>
+                    <div>Tube Voltage: {fileMetadata.dicomMeta.kvp}</div>
+                    <div>Frame Rate: {fileMetadata.dicomMeta.frameRate}</div>
+                    <div>Field of View: {fileMetadata.dicomMeta.fieldOfView}</div>
                   </div>
                 </div>
               ) : (
@@ -355,7 +360,7 @@ export default function CaseDetails() {
                 <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                   {hasPersistedResultsWithoutFile
                     ? 'The original scan is retrieved through its saved backend image reference in the Analysis Workspace.'
-                    : 'Associate an X-ray coronary angiography scan (DICOM or standard image format) to this case to enable preprocessing.'}
+                    : 'Associate a supported angiography image (PNG, JPG, JPEG, TIFF or BMP) with this case to run segmentation.'}
                 </p>
 
                 {!hasPersistedResultsWithoutFile && (

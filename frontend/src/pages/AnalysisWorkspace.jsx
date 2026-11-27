@@ -201,13 +201,15 @@ export default function AnalysisWorkspace() {
   const [overlayUrl, setOverlayUrl] = useState('');
 
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [persistedImage, setPersistedImage] = useState(null);
   const [isResultLoading, setIsResultLoading] = useState(false);
   const [resultError, setResultError] = useState('');
   const [scanLoadMessage, setScanLoadMessage] = useState('');
 
+  const fileMetadata = caseData?.file || persistedImage;
   const isPreviewableImage = useMemo(
-    () => Boolean(caseData?.file?.type?.startsWith('image/')),
-    [caseData?.file?.type]
+    () => Boolean(fileMetadata?.type?.startsWith('image/')),
+    [fileMetadata?.type]
   );
 
   // ---------------------------------------------------------
@@ -228,6 +230,7 @@ export default function AnalysisWorkspace() {
       setMaskUrl('');
       setOverlayUrl('');
       setAnalysisResult(null);
+      setPersistedImage(null);
       setResultError('');
       setScanLoadMessage('');
 
@@ -267,24 +270,41 @@ export default function AnalysisWorkspace() {
 
       try {
         // Step 1: Retrieve all saved results for this case.
-        const results = await uploadService.getSegmentationResults(id);
+        const [resultsResponse, imagesResponse] = await Promise.allSettled([
+          uploadService.getSegmentationResults(id),
+          uploadService.getCaseImages(id),
+        ]);
 
         if (cancelled) return;
 
+        if (resultsResponse.status === 'rejected') {
+          throw resultsResponse.reason;
+        }
+
+        const results = resultsResponse.value;
+        const images = imagesResponse.status === 'fulfilled'
+          ? imagesResponse.value : [];
+
         if (!Array.isArray(results) || results.length === 0) {
+          const latestImage = [...images].sort((a, b) =>
+            new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
+          )[0] || null;
+          setPersistedImage(latestImage);
           setScanLoadMessage(
-            'No saved segmentation result is available for this case yet.'
+            'The original image is stored, but no saved segmentation result is available for this case yet.'
           );
           return;
         }
 
-        // Step 2: Select the most recent result.
-        const latestResult = [...results].sort((a, b) => {
-          return (
-            new Date(b.created_at || 0).getTime() -
-            new Date(a.created_at || 0).getTime()
-          );
-        })[0];
+        // Step 2: Select the most recent result before matching its image record.
+        const latestResult = [...results].sort((a, b) =>
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        )[0];
+
+        const matchingImage = images.find((image) =>
+          String(image.imageId) === String(latestResult.image_id)
+        ) || null;
+        setPersistedImage(matchingImage);
 
         setAnalysisResult(latestResult);
 
@@ -366,7 +386,7 @@ export default function AnalysisWorkspace() {
   }
 
   const hasResult = Boolean(analysisResult);
-  const hasFile = Boolean(scanUrl || caseData.file);
+  const hasFile = Boolean(scanUrl || fileMetadata);
   const modelName = analysisResult?.model_name || 'Not supplied';
 
   const metrics = [
@@ -481,7 +501,7 @@ export default function AnalysisWorkspace() {
               description="Original image retrieved from backend storage or local mock storage."
               imageUrl={scanUrl}
               zoomControls
-              fileName={caseData.file?.name}
+              fileName={fileMetadata?.name}
             />
           </div>
         ) : (
@@ -489,7 +509,7 @@ export default function AnalysisWorkspace() {
             <FileImage className="h-9 w-9 text-slate-400" />
 
             <p className="mt-3 text-sm font-semibold text-white">
-              {caseData.file?.name || 'Angiogram not available'}
+              {fileMetadata?.name || 'Angiogram not available'}
             </p>
 
             <p className="mt-1 max-w-md text-xs leading-5 text-slate-400">
@@ -510,19 +530,19 @@ export default function AnalysisWorkspace() {
           </div>
         )}
 
-        {caseData.file && (
+        {fileMetadata && (
           <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
             <MetricCard
               label="File name"
-              value={caseData.file.name}
+              value={fileMetadata.name}
             />
             <MetricCard
               label="File type"
-              value={caseData.file.type || 'Not supplied'}
+              value={fileMetadata.type || 'Not supplied'}
             />
             <MetricCard
               label="Dimensions"
-              value={caseData.file.dimensions || 'Not supplied'}
+              value={fileMetadata.dimensions || 'Not supplied'}
             />
           </div>
         )}

@@ -87,9 +87,36 @@ export function CaseProvider({ children }) {
       onProgress
     );
 
-    // Refresh cases after successful upload and inference.
-    const freshCases = await caseService.getCases();
-    setCases(freshCases);
+    // Keep the successful upload visible immediately. The backend stores the
+    // image/result records; case-list refresh is a separate best-effort action.
+    setCases((previous) =>
+      previous.map((item) =>
+        String(item.id) === String(caseId)
+          ? {
+              ...item,
+              file: result.file || item.file,
+              imageId: result.imageId || item.imageId,
+              segmentationId: result.segmentationId || item.segmentationId,
+            }
+          : item
+      )
+    );
+
+    try {
+      const freshCases = await caseService.getCases();
+      setCases((previous) =>
+        freshCases.map((fresh) => {
+          const existing = previous.find(
+            (item) => String(item.id) === String(fresh.id)
+          );
+          return existing?.file && String(fresh.id) === String(caseId)
+            ? { ...fresh, file: existing.file, imageId: existing.imageId, segmentationId: existing.segmentationId }
+            : fresh;
+        })
+      );
+    } catch (refreshError) {
+      console.warn('Upload succeeded, but refreshing the case list failed:', refreshError);
+    }
 
     return result;
   };

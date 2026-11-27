@@ -164,7 +164,13 @@ export const caseService = {
 
     const response = await apiClient.get('/sql/cases');
 
-    const cases = (response.data || []).map(mapBackendCase);
+    const payload = response.data;
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.value)
+        ? payload.value
+        : [];
+    const cases = rows.map(mapBackendCase);
 
     // Search and status filters are applied locally because
     // the confirmed backend list endpoint does not accept them.
