@@ -840,14 +840,28 @@ class SQLClinicalService:
         if not case:
             return []
 
-        sql = text("""
-            SELECT s.*
-            FROM segmentation_results s
-            JOIN medical_images m ON s.image_id = m.image_id
-            WHERE m.case_id = :case_id
-            ORDER BY s.segmentation_id;
-        """)
-        result = db.execute(sql, {"case_id": case_id})
+        if user_id is None:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                WHERE m.case_id = :case_id
+                ORDER BY s.segmentation_id;
+            """)
+            params = {"case_id": case_id}
+        else:
+            sql = text("""
+                SELECT s.*
+                FROM segmentation_results s
+                JOIN medical_images m ON s.image_id = m.image_id
+                JOIN cases c ON m.case_id = c.case_id
+                WHERE m.case_id = :case_id
+                  AND c.user_id = :user_id
+                ORDER BY s.segmentation_id;
+            """)
+            params = {"case_id": case_id, "user_id": str(user_id)}
+
+        result = db.execute(sql, params)
         return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod

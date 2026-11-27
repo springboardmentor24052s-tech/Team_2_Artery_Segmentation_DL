@@ -12,6 +12,7 @@ import { caseService } from '../services/caseService';
 import { uploadService } from '../services/uploadService';
 import { CASE_STATUS } from '../utils/constants';
 import { IS_MOCK_MODE } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const CaseContext = createContext(null);
 
@@ -19,6 +20,9 @@ export function CaseProvider({ children }) {
   const [cases, setCases] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Wait for authentication to initialize before fetching cases.
+  const { user, isLoading: isAuthLoading } = useAuth();
 
   const fetchCases = useCallback(async (filters = {}) => {
     try {
@@ -34,9 +38,22 @@ export function CaseProvider({ children }) {
     }
   }, []);
 
+  // Fetch cases only after authentication has completed.
   useEffect(() => {
+    if (isAuthLoading) {
+      return;
+    }
+
+    // Clear cases when the user is logged out.
+    if (!user) {
+      setCases([]);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     fetchCases();
-  }, [fetchCases]);
+  }, [fetchCases, user, isAuthLoading]);
 
   const createCase = async (caseData) => {
     const newCase = await caseService.createCase(caseData);
@@ -50,7 +67,7 @@ export function CaseProvider({ children }) {
     const updated = await caseService.updateCase(id, updates);
 
     setCases((prev) =>
-      prev.map((c) => (c.id === id ? updated : c))
+      prev.map((c) => (String(c.id) === String(id) ? updated : c))
     );
 
     return updated;

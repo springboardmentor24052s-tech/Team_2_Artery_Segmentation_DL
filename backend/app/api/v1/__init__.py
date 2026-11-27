@@ -2,8 +2,10 @@ from fastapi import APIRouter
 from app.api.v1.auth import router as auth_router
 from app.api.v1.inference import router as inference_router
 from app.api.v1.users import router as users_router
+from app.api.v1.sql_clinical import router as sql_clinical_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(users_router)
 api_v1_router.include_router(inference_router)
+api_v1_router.include_router(sql_clinical_router)
